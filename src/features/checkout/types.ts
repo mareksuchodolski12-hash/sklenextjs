@@ -61,14 +61,19 @@ export type CheckoutDraftOrder = {
   customer: {
     email: string;
     phone: string;
+    newsletterOptIn: boolean;
   };
   lines: CheckoutLineItem[];
   shippingAddress: CheckoutAddress;
   billingAddress: CheckoutAddress;
   delivery: {
     method: DeliveryMethod;
-    date: string;
+    preferredDate: string;
     deliveryNotes: string;
     gardeningNote: string;
+  };
+  checkoutState: {
+    paymentStatus: 'pending_payment_setup';
+    orderStatus: 'draft';
   };
 };

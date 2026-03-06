@@ -39,12 +39,12 @@ export const defaultCheckoutValues: CheckoutFormValues = {
   email: '',
   phone: '',
   newsletterOptIn: false,
-  shippingAddress: defaultAddress,
+  shippingAddress: { ...defaultAddress },
   deliveryMethod: 'home_delivery',
   deliveryDate: '',
   deliveryNotes: '',
   billingSameAsShipping: true,
-  billingAddress: defaultAddress,
+  billingAddress: { ...defaultAddress },
   gardeningNote: '',
 };
 
@@ -98,15 +98,20 @@ export function buildDraftOrderPayload(
     customer: {
       email: values.email,
       phone: values.phone,
+      newsletterOptIn: values.newsletterOptIn,
     },
     lines: lineItems,
     shippingAddress: values.shippingAddress,
     billingAddress: values.billingSameAsShipping ? values.shippingAddress : values.billingAddress,
     delivery: {
       method: values.deliveryMethod,
-      date: values.deliveryDate,
+      preferredDate: values.deliveryDate,
       deliveryNotes: values.deliveryNotes,
       gardeningNote: values.gardeningNote,
+    },
+    checkoutState: {
+      paymentStatus: 'pending_payment_setup',
+      orderStatus: 'draft',
     },
   };
 }
