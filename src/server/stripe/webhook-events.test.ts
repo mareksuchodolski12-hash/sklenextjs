@@ -39,9 +39,12 @@ function createWebhookEvent(): StripeWebhookEvent {
 function createHarness(options?: {
   failRetrieveAttempts?: number;
   onRetrieveLineItems?: () => Promise<void> | void;
+  failEmailSend?: boolean;
 }) {
   const events = new Map<string, EventRecord>();
+  const ordersBySessionId = new Map<string, { id: string; completedAt: Date | null }>();
   let failRetrieveAttempts = options?.failRetrieveAttempts ?? 0;
+  let orderIdSequence = 0;
 
   const counters = {
     retrieveLineItems: 0,
@@ -49,13 +52,44 @@ function createHarness(options?: {
     orderItemDeleteMany: 0,
     orderItemCreateMany: 0,
     paymentUpsert: 0,
+    confirmationEmailSend: 0,
   };
 
   const txClient = {
     order: {
-      upsert: async () => {
+      findUnique: async ({
+        where,
+      }: {
+        where: { stripeSessionId: string };
+      }) => ordersBySessionId.get(where.stripeSessionId) ?? null,
+      upsert: async ({
+        where,
+        create,
+        update,
+      }: {
+        where: { stripeSessionId: string };
+        create: { completedAt: Date | null };
+        update: { completedAt: Date | null };
+      }) => {
         counters.orderUpsert += 1;
-        return { id: 'order_1' };
+        const existingOrder = ordersBySessionId.get(where.stripeSessionId);
+
+        if (existingOrder) {
+          const updatedOrder = {
+            ...existingOrder,
+            completedAt: update.completedAt ?? existingOrder.completedAt,
+          };
+          ordersBySessionId.set(where.stripeSessionId, updatedOrder);
+          return updatedOrder;
+        }
+
+        orderIdSequence += 1;
+        const createdOrder = {
+          id: `order_${orderIdSequence}`,
+          completedAt: create.completedAt ?? null,
+        };
+        ordersBySessionId.set(where.stripeSessionId, createdOrder);
+        return createdOrder;
       },
     },
     orderItem: {
@@ -148,6 +182,13 @@ function createHarness(options?: {
         },
       ];
     },
+    sendConfirmationEmail: async () => {
+      counters.confirmationEmailSend += 1;
+
+      if (options?.failEmailSend) {
+        throw new Error('SMTP transport unavailable.');
+      }
+    },
     now: () => new Date('2026-03-06T15:30:00.000Z'),
   });
 
@@ -173,6 +214,7 @@ test('processes a new event successfully once', async () => {
   assert.equal(harness.counters.orderItemDeleteMany, 1);
   assert.equal(harness.counters.orderItemCreateMany, 1);
   assert.equal(harness.counters.paymentUpsert, 1);
+  assert.equal(harness.counters.confirmationEmailSend, 1);
 });
 
 test('skips a duplicate event when already processed', async () => {
@@ -190,6 +232,7 @@ test('skips a duplicate event when already processed', async () => {
   assert.equal(harness.counters.orderUpsert, 1);
   assert.equal(harness.counters.orderItemCreateMany, 1);
   assert.equal(harness.counters.paymentUpsert, 1);
+  assert.equal(harness.counters.confirmationEmailSend, 1);
 });
 
 test('retries a failed event and recovers successfully', async () => {
@@ -210,6 +253,7 @@ test('retries a failed event and recovers successfully', async () => {
   assert.equal(harness.counters.orderUpsert, 1);
   assert.equal(harness.counters.orderItemCreateMany, 1);
   assert.equal(harness.counters.paymentUpsert, 1);
+  assert.equal(harness.counters.confirmationEmailSend, 1);
 });
 
 test('keeps recovered event immutable on repeated retries', async () => {
@@ -229,6 +273,7 @@ test('keeps recovered event immutable on repeated retries', async () => {
   assert.equal(harness.counters.orderUpsert, 1);
   assert.equal(harness.counters.orderItemCreateMany, 1);
   assert.equal(harness.counters.paymentUpsert, 1);
+  assert.equal(harness.counters.confirmationEmailSend, 1);
 });
 
 test('allows only one reclaim processor when a failed event is retried concurrently', async () => {
@@ -277,4 +322,25 @@ test('allows only one reclaim processor when a failed event is retried concurren
   assert.equal(harness.counters.orderUpsert, 1);
   assert.equal(harness.counters.orderItemCreateMany, 1);
   assert.equal(harness.counters.paymentUpsert, 1);
+  assert.equal(harness.counters.confirmationEmailSend, 1);
+});
+
+test('does not fail webhook processing when confirmation email sending fails', async () => {
+  const harness = createHarness({ failEmailSend: true });
+  const event = createWebhookEvent();
+
+  const result = await harness.processStripeWebhookEvent(event);
+  const duplicateResult = await harness.processStripeWebhookEvent(event);
+
+  assert.deepEqual(result, {
+    status: 'processed',
+    duplicate: false,
+  });
+  assert.deepEqual(duplicateResult, {
+    status: 'ignored',
+    duplicate: true,
+  });
+  assert.equal(harness.readEvent(event.id)?.status, 'processed');
+  assert.equal(harness.counters.orderUpsert, 1);
+  assert.equal(harness.counters.confirmationEmailSend, 1);
 });
