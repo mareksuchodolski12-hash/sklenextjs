@@ -39,6 +39,8 @@ AUTH_SECRET="replace-with-strong-random-secret"
 # EMAIL_SERVER="smtp://localhost:1025"
 # EMAIL_FROM="Verdant Atelier <noreply@verdant-atelier.local>"
 
+# admin route protection
+ADMIN_EMAILS="owner@example.com"
 
 # Stripe checkout configuration
 STRIPE_SECRET_KEY="sk_test_replace_me"
@@ -204,3 +206,19 @@ stripe listen --forward-to localhost:3000/api/stripe/webhook
    - success -> `/checkout/success?session_id=...`
    - cancel -> `/checkout/cancel`
 
+
+
+## Admin area foundation
+
+A production-minded admin shell is available under `/admin` with defense-in-depth protection:
+
+- Middleware gate: authenticated users only on `/admin/*`, plus email allowlist enforcement via `ADMIN_EMAILS`.
+- Server gate: admin layout uses a server-side `requireAdminSession()` guard so route checks are not only client/middleware dependent.
+- Catalog foundation pages:
+  - `/admin` dashboard summary
+  - `/admin/products` list management
+  - `/admin/products/new` create form foundation
+  - `/admin/products/[id]` edit form foundation
+  - `/admin/taxonomy` category/collection management shell
+
+Image handling strategy is URL-first for now (upload-provider agnostic), preparing for a future storage integration (S3/Cloudinary/etc.) that returns durable URLs.
