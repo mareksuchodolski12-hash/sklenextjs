@@ -11,17 +11,33 @@ import { ActiveFilterChips } from '@/features/catalog/components/active-filter-c
 import { FilterPanel } from '@/features/catalog/components/filter-panel';
 import { ProductGrid } from '@/features/catalog/components/product-grid';
 import { SortControls } from '@/features/catalog/components/sort-controls';
+import { buildPageMetadata } from '@/lib/seo';
 import { getCatalogCategories, getFilteredListingProducts } from '@/server/catalog/queries';
 
-export const metadata: Metadata = {
-  title: 'Shop Plants | Verdant Atelier',
-  description:
-    'Discover premium garden flowers and outdoor plants by style, season, and practical growing needs.',
-};
+export const revalidate = 300;
 
 type PlantsPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
+
+export async function generateMetadata({ searchParams }: PlantsPageProps): Promise<Metadata> {
+  const params = await searchParams;
+  const hasSearchParams = Object.values(params).some((value) => {
+    if (Array.isArray(value)) {
+      return value.length > 0;
+    }
+
+    return typeof value === 'string' && value.length > 0;
+  });
+
+  return buildPageMetadata({
+    title: 'Shop outdoor flowers and garden plants',
+    description:
+      'Discover premium garden flowers and outdoor plants by style, season, and practical growing needs.',
+    pathname: '/plants',
+    noIndex: hasSearchParams,
+  });
+}
 
 export default async function PlantsPage({ searchParams }: PlantsPageProps) {
   const params = await searchParams;

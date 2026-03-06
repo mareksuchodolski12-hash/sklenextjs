@@ -1,8 +1,17 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 import { Container } from '@/components/layout/container';
+import { buildPageMetadata } from '@/lib/seo';
 import { requireAdminSession } from '@/lib/admin-auth';
+
+export const metadata: Metadata = buildPageMetadata({
+  title: 'Admin',
+  description: 'Internal catalog management area.',
+  pathname: '/admin',
+  noIndex: true,
+});
 
 const links = [
   { href: '/admin', label: 'Dashboard' },

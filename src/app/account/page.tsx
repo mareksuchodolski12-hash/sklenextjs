@@ -1,8 +1,17 @@
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
 import { auth } from '@/auth';
 import { Container } from '@/components/layout/container';
+import { buildPageMetadata } from '@/lib/seo';
 import { getAccountShellData } from '@/server/account/queries';
+
+export const metadata: Metadata = buildPageMetadata({
+  title: 'My account',
+  description: 'Manage your saved plants and discovery activity.',
+  pathname: '/account',
+  noIndex: true,
+});
 
 export default async function AccountPage() {
   const session = await auth();
