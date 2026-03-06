@@ -3,8 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { Container } from '@/components/layout/container';
-import { getProductBySlug, getRelatedProducts } from '@/data/mock/catalog-queries';
-import { mockProducts } from '@/data/mock/catalog';
+import { getCatalogProducts, getProductBySlug, getRelatedProducts } from '@/server/catalog/queries';
 import type { Product } from '@/domain/catalog/models';
 import { formatLabel, formatPrice, formatStockStatus } from '@/domain/catalog/utils';
 import { ProductGrid } from '@/features/catalog/components/product-grid';
@@ -13,8 +12,9 @@ import { ProductFactsGrid } from '@/features/catalog/components/product-detail/p
 import { ProductGallery } from '@/features/catalog/components/product-detail/product-gallery';
 import { ProductInfoList } from '@/features/catalog/components/product-detail/product-info-list';
 
-export function generateStaticParams() {
-  return mockProducts.map((product) => ({ slug: product.slug }));
+export async function generateStaticParams() {
+  const products = await getCatalogProducts();
+  return products.map((product: { slug: string }) => ({ slug: product.slug }));
 }
 
 export async function generateMetadata({
@@ -23,7 +23,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const product = getProductBySlug(slug);
+  const product = await getProductBySlug(slug);
 
   if (!product) {
     return {
@@ -39,13 +39,13 @@ export async function generateMetadata({
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const product = getProductBySlug(slug);
+  const product = await getProductBySlug(slug);
 
   if (!product) {
     notFound();
   }
 
-  const relatedProducts = getRelatedProducts(product.slug, 3);
+  const relatedProducts = await getRelatedProducts(product.slug, 3);
 
   return (
     <section className="py-10 sm:py-14">
