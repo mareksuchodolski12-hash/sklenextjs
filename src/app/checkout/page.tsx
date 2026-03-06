@@ -3,11 +3,15 @@ import Link from 'next/link';
 
 import { Container } from '@/components/layout/container';
 import { CheckoutForm } from '@/features/checkout/components/checkout-form';
+import { buildPageMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
-  title: 'Checkout | Verdant Atelier',
-  description: 'Complete your premium garden flower order details and continue to secure Stripe checkout.',
-};
+export const metadata: Metadata = buildPageMetadata({
+  title: 'Checkout',
+  description:
+    'Complete your premium garden flower order details and continue to secure Stripe checkout.',
+  pathname: '/checkout',
+  noIndex: true,
+});
 
 export default function CheckoutPage() {
   return (
@@ -19,8 +23,8 @@ export default function CheckoutPage() {
           </p>
           <h1 className="font-serif text-4xl text-brand-moss sm:text-5xl">Checkout</h1>
           <p className="max-w-3xl text-sm leading-relaxed text-brand-charcoal/75 sm:text-base">
-            Confirm your contact and delivery details for a smooth, low-friction ordering flow.
-            You will review your details here, then continue to Stripe for secure card payment.
+            Confirm your contact and delivery details for a smooth, low-friction ordering flow. You
+            will review your details here, then continue to Stripe for secure card payment.
           </p>
           <Link
             href="/plants"
