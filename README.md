@@ -22,36 +22,21 @@ npm install
 
 ### 2) Configure environment
 
-Create local environment variables from the provided template:
-
 ```bash
 cp .env.example .env.local
 ```
 
-Set `DATABASE_URL` (and optionally `DIRECT_DATABASE_URL`) to your PostgreSQL instance.
-
-### 3) Generate Prisma client
-
-```bash
-npm run prisma:generate
-```
-
-### 4) Create and apply migrations
-
-```bash
-npm run prisma:migrate:dev -- --name init_catalog
-```
-
-### 5) Seed starter catalog data
-
-```bash
-npm run db:seed
-```
-
-### 6) Start development server
+### 3) Start development server
 
 ```bash
 npm run dev
+```
+
+### 4) Build for production
+
+```bash
+npm run build
+npm run start
 ```
 
 ## Scripts
@@ -69,58 +54,68 @@ npm run dev
 - `npm run prisma:studio` — inspect data in Prisma Studio
 - `npm run db:seed` — seed starter catalog data
 
-## Prisma Data Model Overview
+## Prisma + PostgreSQL setup
 
-The Prisma schema is intentionally designed for production-oriented catalog growth while avoiding premature order/auth complexity.
+### Generate Prisma Client
 
-### Core models
+```bash
+npm run prisma:generate
+```
 
-- `Product`: canonical commerce item with merchandising fields, stock controls, and horticultural filters.
-- `ProductImage`: ordered media gallery per product.
-- `Category`: primary navigational taxonomy.
-- `Collection`: curated merchandising groups.
-- `Tag`: flexible discoverability labels.
+### Create and apply migrations
 
-### Supporting models
+```bash
+npm run prisma:migrate:dev -- --name init_catalog
+```
 
-- `CollectionProduct`: ordered many-to-many join between collections and products.
-- `ProductTag`: many-to-many join between products and tags.
-- `ProductAttribute`: key/value extension model to support future admin-managed custom attributes.
-- `ProductRelation`: explicit related-product graph with optional score/reason metadata.
-- `SavedDiscovery`: optional persistence for discovery quiz/search criteria and generated results.
+### Seed catalog data from existing mocks
 
-### Notes on future expansion
+```bash
+npm run db:seed
+```
 
-- Inventory is represented directly on `Product` (`inventoryQuantity`, `lowStockThreshold`, `allowBackorder`, `trackInventory`, `stockStatus`).
-- Orders, payments, and user authentication are intentionally deferred.
-- The schema can later add `User`, `Address`, `Order`, and `OrderItem` without needing to redesign catalog primitives.
+## Prisma schema coverage
+
+The schema is designed to support premium storefront merchandising, filtering, related products, and stock-aware commerce while deferring auth, payments, and full order implementation.
+
+Included models:
+
+- `Product`
+- `ProductImage`
+- `Category`
+- `Collection`
+- `Tag`
+- `CollectionProduct` (ordered collection membership)
+- `ProductTag`
+- `ProductAttribute` (optional extensible key/value fields)
+- `ProductRelation` (related-product graph)
+- `SavedDiscovery` (optional persisted discovery sessions/results)
 
 ## Project Structure
 
 ```text
 prisma/
   schema.prisma          # PostgreSQL datasource + production-minded catalog schema
-  seed.ts                # Seeds catalog, collections, tags, and product relations from mock data
+  seed.ts                # Seed strategy using current mock catalog data
 src/
   app/                   # App Router entrypoints and layouts
   components/            # Shared UI/layout components
   config/                # Application-level static configuration
-  data/mock/             # Existing mock content used by seed script
   features/              # Feature modules (domain-oriented)
   lib/
-    prisma.ts            # Prisma client singleton helper
     database.ts          # Database provider/env key config
     env.ts               # Runtime environment validation helpers
+    prisma.ts            # Prisma client singleton helper
   styles/                # Global styles
   types/                 # Shared TypeScript types
 ```
 
 ## Environment Variables
 
+Create `.env.local` when needed:
+
 ```env
 DATABASE_URL=postgresql://...
-DIRECT_DATABASE_URL=postgresql://...
 ```
 
-- `DATABASE_URL` is required to connect Prisma to PostgreSQL.
-- `DIRECT_DATABASE_URL` is optional but recommended for migration workflows in production.
+`DATABASE_URL` is validated in production through `src/lib/env.ts`.

@@ -148,7 +148,7 @@ async function seed() {
     }
   }
 
-  const products = await prisma.product.findMany({
+  const products: Array<{ id: string; slug: string; categoryId: string }> = await prisma.product.findMany({
     select: { id: true, slug: true, categoryId: true },
   });
 
