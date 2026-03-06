@@ -97,6 +97,9 @@ export type Product = {
   badges: MerchandisingBadge[];
   styles: GardenStyle[];
   effects: GardenEffect[];
+  plantingNotes?: string;
+  careNotes: string[];
+  idealPlacement: string[];
 };
 
 export type CatalogFilterOptions = {
