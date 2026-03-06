@@ -5,7 +5,12 @@ import { type FormEvent, useState } from 'react';
 import { AddressFields } from '@/features/checkout/components/address-fields';
 import { CheckoutSection } from '@/features/checkout/components/checkout-section';
 import { OrderSummary } from '@/features/checkout/components/order-summary';
-import type { CheckoutAddress, CheckoutFormValues, CheckoutValidationErrors } from '@/features/checkout/types';
+import type {
+  CheckoutAddress,
+  CheckoutFormValues,
+  CheckoutValidationErrors,
+} from '@/features/checkout/types';
+import type { CreateCheckoutSessionResponse } from '@/features/checkout/stripe-types';
 import {
   buildDraftOrderPayload,
   defaultCheckoutValues,
@@ -20,7 +25,8 @@ import { TextareaInput } from '@/shared/ui/forms/textarea-input';
 export function CheckoutForm() {
   const [values, setValues] = useState<CheckoutFormValues>(defaultCheckoutValues);
   const [errors, setErrors] = useState<CheckoutValidationErrors>({});
-  const [submittedPayloadPreview, setSubmittedPayloadPreview] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const updateAddressField = (
     scope: 'shippingAddress' | 'billingAddress',
@@ -36,24 +42,58 @@ export function CheckoutForm() {
     }));
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const nextErrors = validateCheckoutForm(values);
     setErrors(nextErrors);
+    setSubmitError(null);
 
     if (Object.keys(nextErrors).length > 0) {
-      setSubmittedPayloadPreview(null);
       return;
     }
 
-    const payload = buildDraftOrderPayload(values, mockCheckoutItems);
-    setSubmittedPayloadPreview(JSON.stringify(payload, null, 2));
+    setIsSubmitting(true);
+
+    try {
+      const draftOrder = buildDraftOrderPayload(values, mockCheckoutItems);
+      const response = await fetch('/api/checkout/session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ draftOrder }),
+      });
+
+      const payload = (await response.json()) as CreateCheckoutSessionResponse;
+
+      if (!response.ok || !payload.ok) {
+        setSubmitError(
+          payload.ok ? 'We could not start secure checkout. Please try again.' : payload.message,
+        );
+        return;
+      }
+
+      window.location.assign(payload.checkoutUrl);
+    } catch {
+      setSubmitError('A network error occurred while starting Stripe checkout. Please retry.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
       <form onSubmit={handleSubmit} noValidate className="space-y-6">
+        {submitError ? (
+          <div
+            role="alert"
+            className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+          >
+            {submitError}
+          </div>
+        ) : null}
+
         <CheckoutSection eyebrow="Customer information" title="Contact details">
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField
@@ -73,6 +113,7 @@ export function CheckoutForm() {
                 onChange={(event) => setValues((prev) => ({ ...prev, email: event.target.value }))}
               />
             </FormField>
+
             <FormField id="phone" label="Phone" required error={errors.phone}>
               <TextInput
                 id="phone"
@@ -84,6 +125,7 @@ export function CheckoutForm() {
                 onChange={(event) => setValues((prev) => ({ ...prev, phone: event.target.value }))}
               />
             </FormField>
+
             <label className="flex items-center gap-2 rounded-2xl border border-brand-sage/20 bg-brand-cream/55 px-4 py-3 text-sm text-brand-charcoal/80">
               <input
                 type="checkbox"
@@ -122,6 +164,7 @@ export function CheckoutForm() {
                 <option value="nursery_pickup">Nursery pickup</option>
               </SelectInput>
             </FormField>
+
             <FormField
               id="delivery-date"
               label="Preferred delivery date"
@@ -138,6 +181,7 @@ export function CheckoutForm() {
                 }
               />
             </FormField>
+
             <FormField
               id="delivery-notes"
               label="Delivery notes"
@@ -154,6 +198,7 @@ export function CheckoutForm() {
                 }
               />
             </FormField>
+
             <FormField
               id="gardening-note"
               label="Garden planning note"
@@ -200,23 +245,15 @@ export function CheckoutForm() {
 
         <button
           type="submit"
-          className="w-full rounded-full bg-brand-moss px-6 py-3 text-sm font-semibold uppercase tracking-[0.08em] text-brand-cream transition hover:bg-brand-moss/95"
+          disabled={isSubmitting}
+          className="w-full rounded-full bg-brand-moss px-6 py-3 text-sm font-semibold uppercase tracking-[0.08em] text-brand-cream transition hover:bg-brand-moss/95 disabled:cursor-not-allowed disabled:opacity-70"
         >
-          Continue to payment setup
+          {isSubmitting ? 'Starting secure payment…' : 'Continue to secure payment'}
         </button>
       </form>
 
       <aside className="space-y-4 lg:sticky lg:top-24">
         <OrderSummary />
-
-        {submittedPayloadPreview ? (
-          <section className="rounded-3xl border border-brand-sage/20 bg-white p-5 shadow-soft">
-            <p className="text-xs uppercase tracking-[0.14em] text-brand-sage">Draft payload preview</p>
-            <pre className="mt-3 max-h-72 overflow-auto rounded-2xl bg-brand-charcoal p-3 text-xs text-brand-cream">
-              {submittedPayloadPreview}
-            </pre>
-          </section>
-        ) : null}
       </aside>
     </div>
   );

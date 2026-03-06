@@ -3,22 +3,37 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
 import { stripeCatalogById, type StripeCatalogItemId } from '@/features/checkout/cart';
-import type { CheckoutLineItem } from '@/features/checkout/types';
+import type { CheckoutAddress, CheckoutLineItem } from '@/features/checkout/types';
 import type {
   CreateCheckoutSessionRequest,
   CreateCheckoutSessionResponse,
 } from '@/features/checkout/stripe-types';
 import { getStripeServerClient } from '@/lib/stripe/server';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 const SHIPPING_FEE_MINOR = 800;
 const FREE_SHIPPING_THRESHOLD_MINOR = 12000;
 const CURRENCY = 'gbp';
+const MAX_LINE_QUANTITY = 20;
+
+export const runtime = 'nodejs';
 
 type SessionLine = {
   id: StripeCatalogItemId;
   quantity: number;
 };
+
+function getSiteUrl() {
+  const configured = process.env.SITE_URL ?? process.env.NEXT_PUBLIC_SITE_URL;
+  if (!configured) {
+    return 'http://localhost:3000';
+  }
+
+  try {
+    return new URL(configured).origin;
+  } catch {
+    return 'http://localhost:3000';
+  }
+}
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -29,20 +44,32 @@ function getObjectField<T extends string>(obj: Record<string, unknown>, field: T
   return isObject(value) ? value : null;
 }
 
+function normalizeAddress(value: unknown): CheckoutAddress {
+  const obj = isObject(value) ? value : {};
+
+  return {
+    firstName: typeof obj.firstName === 'string' ? obj.firstName : '',
+    lastName: typeof obj.lastName === 'string' ? obj.lastName : '',
+    company: typeof obj.company === 'string' ? obj.company : '',
+    addressLine1: typeof obj.addressLine1 === 'string' ? obj.addressLine1 : '',
+    addressLine2: typeof obj.addressLine2 === 'string' ? obj.addressLine2 : '',
+    city: typeof obj.city === 'string' ? obj.city : '',
+    region: typeof obj.region === 'string' ? obj.region : '',
+    postalCode: typeof obj.postalCode === 'string' ? obj.postalCode : '',
+    country: typeof obj.country === 'string' ? obj.country : '',
+  };
+}
+
 function sanitizeLineItems(lines: CheckoutLineItem[]) {
   const sanitized: SessionLine[] = [];
 
   for (const line of lines) {
-    if (!line || typeof line.id !== 'string') {
-      continue;
-    }
-
-    if (!(line.id in stripeCatalogById)) {
+    if (!line || typeof line.id !== 'string' || !(line.id in stripeCatalogById)) {
       continue;
     }
 
     const normalizedQuantity = Number.isFinite(line.quantity)
-      ? Math.max(1, Math.min(20, Math.floor(line.quantity)))
+      ? Math.max(1, Math.min(MAX_LINE_QUANTITY, Math.floor(line.quantity)))
       : 1;
 
     sanitized.push({
@@ -72,43 +99,33 @@ function parseRequestBody(value: unknown): CreateCheckoutSessionRequest | null {
       customer: {
         email: typeof customer.email === 'string' ? customer.email : '',
         phone: typeof customer.phone === 'string' ? customer.phone : '',
+        newsletterOptIn: Boolean(customer.newsletterOptIn),
       },
       lines: draftOrder.lines as CheckoutLineItem[],
-      shippingAddress: (getObjectField(
-        draftOrder,
-        'shippingAddress',
-      ) as CreateCheckoutSessionRequest['draftOrder']['shippingAddress']) ?? {
-        firstName: '',
-        lastName: '',
-        addressLine1: '',
-        city: '',
-        region: '',
-        postalCode: '',
-        country: '',
-      },
-      billingAddress: (getObjectField(
-        draftOrder,
-        'billingAddress',
-      ) as CreateCheckoutSessionRequest['draftOrder']['billingAddress']) ?? {
-        firstName: '',
-        lastName: '',
-        addressLine1: '',
-        city: '',
-        region: '',
-        postalCode: '',
-        country: '',
-      },
+      shippingAddress: normalizeAddress(draftOrder.shippingAddress),
+      billingAddress: normalizeAddress(draftOrder.billingAddress),
       delivery: {
         method: delivery.method === 'nursery_pickup' ? 'nursery_pickup' : 'home_delivery',
-        date: typeof delivery.date === 'string' ? delivery.date : '',
+        preferredDate:
+          typeof delivery.preferredDate === 'string'
+            ? delivery.preferredDate
+            : typeof delivery.date === 'string'
+              ? delivery.date
+              : '',
         deliveryNotes: typeof delivery.deliveryNotes === 'string' ? delivery.deliveryNotes : '',
         gardeningNote: typeof delivery.gardeningNote === 'string' ? delivery.gardeningNote : '',
+      },
+      checkoutState: {
+        paymentStatus: 'pending_payment_setup',
+        orderStatus: 'draft',
       },
     },
   };
 }
 
-function buildError(code: CreateCheckoutSessionResponse['code'], message: string, status: number) {
+type CheckoutSessionErrorCode = Extract<CreateCheckoutSessionResponse, { ok: false }>['code'];
+
+function buildError(code: CheckoutSessionErrorCode, message: string, status: number) {
   return NextResponse.json<CreateCheckoutSessionResponse>(
     {
       ok: false,
@@ -128,7 +145,6 @@ export async function POST(request: NextRequest) {
     }
 
     const lines = sanitizeLineItems(body.draftOrder.lines);
-
     if (lines.length === 0) {
       return buildError('INVALID_CART', 'No valid cart lines were provided.', 400);
     }
@@ -138,7 +154,6 @@ export async function POST(request: NextRequest) {
       (sum, line) => sum + stripeCatalogById[line.id].unitAmountMinor * line.quantity,
       0,
     );
-
     const deliveryMinor = subtotalMinor >= FREE_SHIPPING_THRESHOLD_MINOR ? 0 : SHIPPING_FEE_MINOR;
 
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = lines.map((line) => ({
@@ -167,11 +182,13 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const siteUrl = getSiteUrl();
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
-      success_url: `${SITE_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${SITE_URL}/checkout/cancel`,
+      success_url: `${siteUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${siteUrl}/checkout/cancel`,
       customer_email: body.draftOrder.customer.email || undefined,
+      client_reference_id: `draft-${Date.now()}`,
       billing_address_collection: 'required',
       shipping_address_collection: {
         allowed_countries: ['GB'],
@@ -181,9 +198,10 @@ export async function POST(request: NextRequest) {
       },
       metadata: {
         deliveryMethod: body.draftOrder.delivery.method,
-        deliveryDate: body.draftOrder.delivery.date,
+        preferredDeliveryDate: body.draftOrder.delivery.preferredDate,
         deliveryNotes: body.draftOrder.delivery.deliveryNotes.slice(0, 500),
         gardeningNote: body.draftOrder.delivery.gardeningNote.slice(0, 500),
+        newsletterOptIn: String(body.draftOrder.customer.newsletterOptIn),
       },
       line_items: lineItems,
     });
