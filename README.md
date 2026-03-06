@@ -38,6 +38,13 @@ AUTH_SECRET="replace-with-strong-random-secret"
 # GITHUB_SECRET=""
 # EMAIL_SERVER="smtp://localhost:1025"
 # EMAIL_FROM="Verdant Atelier <noreply@verdant-atelier.local>"
+
+
+# Stripe checkout configuration
+STRIPE_SECRET_KEY="sk_test_replace_me"
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="pk_test_replace_me"
+STRIPE_WEBHOOK_SECRET="whsec_replace_me"
+NEXT_PUBLIC_SITE_URL="http://localhost:3000"
 ```
 
 ### 3) Generate Prisma Client
@@ -150,3 +157,32 @@ src/
 - **Migration-ready foundation**: schema is explicit, relational, and ready for Prisma migrations.
 - **Admin-friendly future**: slugs, join models, and attributes support non-destructive content editing patterns.
 - **Growth path**: orders/users can be added later without rewriting catalog primitives.
+
+## Stripe payment flow (App Router)
+
+This project includes a production-minded Stripe checkout foundation:
+
+- `POST /api/checkout/session` creates Stripe Checkout Sessions server-side.
+- `/checkout` collects customer, delivery, and billing details before redirecting to Stripe.
+- `/checkout/success` and `/checkout/cancel` provide return surfaces after Stripe flow completion.
+- `POST /api/stripe/webhook` verifies Stripe signatures and provides a safe skeleton for order persistence.
+
+### Security and architecture notes
+
+- Stripe secret usage is server-only (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`).
+- Client never receives secret keys or computes authoritative payment amounts.
+- Checkout session line items are mapped from a server-maintained catalog and sanitized quantities.
+- Webhook route validates `stripe-signature` using Stripe SDK before processing events.
+
+### Local webhook testing
+
+1. Install Stripe CLI and authenticate.
+2. Forward events to local webhook:
+
+```bash
+stripe listen --forward-to localhost:3000/api/stripe/webhook
+```
+
+3. Copy the printed webhook signing secret into `STRIPE_WEBHOOK_SECRET`.
+
+> Note: webhook currently logs validated events and is intentionally a skeleton until order persistence is implemented.

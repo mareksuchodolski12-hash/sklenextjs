@@ -3,6 +3,10 @@
 import { type FormEvent, useMemo, useState } from 'react';
 
 import type { CheckoutFormValues, CheckoutValidationErrors } from '@/features/checkout/types';
+# codex/implement-checkout-foundation-for-flower-store-hu07kk
+import type { CreateCheckoutSessionResponse } from '@/features/checkout/stripe-types';
+#
+# main
 import {
   buildDraftOrderPayload,
   calculateOrderTotals,
@@ -32,7 +36,10 @@ const initialValues: CheckoutFormValues = {
 export function CheckoutForm() {
   const [values, setValues] = useState<CheckoutFormValues>(initialValues);
   const [errors, setErrors] = useState<CheckoutValidationErrors>({});
+# codex/implement-checkout-foundation-for-flower-store-hu07kk
+#
   const [submittedPayloadPreview, setSubmittedPayloadPreview] = useState<string | null>(null);
+# main
 
   const totals = useMemo(() => calculateOrderTotals(mockCheckoutItems), []);
 
@@ -59,18 +66,48 @@ export function CheckoutForm() {
     }));
   };
 
+# codex/implement-checkout-foundation-for-flower-store-hu07kk
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+#
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+# main
     event.preventDefault();
     const nextErrors = validateCheckoutForm(values);
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length > 0) {
+# codex/implement-checkout-foundation-for-flower-store-hu07kk
+      return;
+    }
+
+    try {
+      const draftOrder = buildDraftOrderPayload(values, mockCheckoutItems);
+      const response = await fetch('/api/checkout/session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ draftOrder }),
+      });
+
+      const payload = (await response.json()) as CreateCheckoutSessionResponse;
+
+      if (!response.ok || !payload.ok) {
+        return;
+      }
+
+      window.location.assign(payload.checkoutUrl);
+    } catch {
+      return;
+    }
+#
       setSubmittedPayloadPreview(null);
       return;
     }
 
     const payload = buildDraftOrderPayload(values, mockCheckoutItems);
     setSubmittedPayloadPreview(JSON.stringify(payload, null, 2));
+# main
   };
 
   return (
@@ -440,7 +477,11 @@ export function CheckoutForm() {
           type="submit"
           className="w-full rounded-full bg-brand-moss px-6 py-3 text-sm font-semibold uppercase tracking-[0.08em] text-brand-cream transition hover:bg-brand-moss/95"
         >
+# codex/implement-checkout-foundation-for-flower-store-hu07kk
+          Continue to secure payment
+#
           Continue to payment setup
+# main
         </button>
       </form>
 
@@ -481,6 +522,12 @@ export function CheckoutForm() {
           </dl>
 
           <p className="mt-4 rounded-2xl bg-brand-cream px-3 py-2 text-xs text-brand-charcoal/80">
+# codex/implement-checkout-foundation-for-flower-store-hu07kk
+            Secure payment is processed by Stripe. Fulfillment and order orchestration will be wired
+            after webhook-driven order persistence is implemented.
+          </p>
+        </section>
+#
             Payment processing and order creation hooks are intentionally not enabled yet.
           </p>
         </section>
@@ -495,6 +542,7 @@ export function CheckoutForm() {
             </pre>
           </section>
         ) : null}
+# main
       </aside>
     </div>
   );
