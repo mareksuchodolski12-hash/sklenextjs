@@ -285,6 +285,8 @@ model Order {
   paymentStatus       String?
   metadata            Json?
   completedAt         DateTime?
+  confirmationEmailSendingAt DateTime?
+  confirmationEmailSentAt DateTime?
   orderItems          OrderItem[]
   payments            Payment[]
   createdAt           DateTime    @default(now())
