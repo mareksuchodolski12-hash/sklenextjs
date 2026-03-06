@@ -43,7 +43,10 @@ export async function POST(request: NextRequest) {
         message: error.message,
       });
 
-      return NextResponse.json({ ok: false, message: error.message }, { status: error.statusCode });
+      return NextResponse.json(
+        { ok: false, message: error.message },
+        { status: error.statusCode },
+      );
     }
 
     const message = error instanceof Error ? error.message : 'Unable to process Stripe webhook.';

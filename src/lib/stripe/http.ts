@@ -1,4 +1,6 @@
-import { getStripeSecretKey } from '@/lib/stripe/config';
+import { createHmac, timingSafeEqual } from 'node:crypto';
+
+import { getStripeSecretKey, getStripeWebhookSecret } from '@/lib/stripe/config';
 
 export type StripeCheckoutLineItem = {
   quantity: number;
@@ -19,6 +21,14 @@ export type StripeCheckoutSession = {
   customer_details?: {
     email?: string | null;
   } | null;
+};
+
+type StripeEvent = {
+  id: string;
+  type: string;
+  data: {
+    object: StripeCheckoutSession;
+  };
 };
 
 function encodeForm(data: Record<string, string>): URLSearchParams {
@@ -148,4 +158,43 @@ export async function retrieveStripeCheckoutSession(
           }
         : null,
   };
+}
+
+function parseStripeSignature(signatureHeader: string) {
+  const elements = signatureHeader.split(',');
+  const parsed = new Map<string, string>();
+
+  for (const element of elements) {
+    const [key, value] = element.split('=', 2);
+    if (key && value) {
+      parsed.set(key.trim(), value.trim());
+    }
+  }
+
+  return {
+    timestamp: parsed.get('t') ?? '',
+    signature: parsed.get('v1') ?? '',
+  };
+}
+
+export function constructStripeEvent(payload: string, signatureHeader: string): StripeEvent {
+  const { timestamp, signature } = parseStripeSignature(signatureHeader);
+
+  if (!timestamp || !signature) {
+    throw new Error('Malformed stripe-signature header.');
+  }
+
+  const signedPayload = `${timestamp}.${payload}`;
+  const expectedSignature = createHmac('sha256', getStripeWebhookSecret())
+    .update(signedPayload, 'utf8')
+    .digest('hex');
+
+  const a = Buffer.from(expectedSignature, 'hex');
+  const b = Buffer.from(signature, 'hex');
+
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
+    throw new Error('Invalid Stripe webhook signature.');
+  }
+
+  return JSON.parse(payload) as StripeEvent;
 }
