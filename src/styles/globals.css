@@ -9,3 +9,7 @@
 body {
   @apply bg-brand-cream text-brand-charcoal antialiased;
 }
+
+::selection {
+  @apply bg-brand-moss text-brand-cream;
+}
