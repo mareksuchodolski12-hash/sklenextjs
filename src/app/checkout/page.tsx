@@ -20,7 +20,7 @@ export default function CheckoutPage() {
           <h1 className="font-serif text-4xl text-brand-moss sm:text-5xl">Checkout</h1>
           <p className="max-w-3xl text-sm leading-relaxed text-brand-charcoal/75 sm:text-base">
             Confirm your contact and delivery details for a smooth, low-friction ordering flow.
-            Payment is handled securely by Stripe.
+            Payment and live order submission will be connected in the next integration phase.
           </p>
           <Link
             href="/plants"
