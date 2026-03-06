@@ -113,6 +113,7 @@ export function CheckoutForm() {
                 onChange={(event) => setValues((prev) => ({ ...prev, email: event.target.value }))}
               />
             </FormField>
+
             <FormField id="phone" label="Phone" required error={errors.phone}>
               <TextInput
                 id="phone"
@@ -124,6 +125,7 @@ export function CheckoutForm() {
                 onChange={(event) => setValues((prev) => ({ ...prev, phone: event.target.value }))}
               />
             </FormField>
+
             <label className="flex items-center gap-2 rounded-2xl border border-brand-sage/20 bg-brand-cream/55 px-4 py-3 text-sm text-brand-charcoal/80">
               <input
                 type="checkbox"
@@ -162,6 +164,7 @@ export function CheckoutForm() {
                 <option value="nursery_pickup">Nursery pickup</option>
               </SelectInput>
             </FormField>
+
             <FormField
               id="delivery-date"
               label="Preferred delivery date"
@@ -178,6 +181,7 @@ export function CheckoutForm() {
                 }
               />
             </FormField>
+
             <FormField
               id="delivery-notes"
               label="Delivery notes"
@@ -194,6 +198,7 @@ export function CheckoutForm() {
                 }
               />
             </FormField>
+
             <FormField
               id="gardening-note"
               label="Garden planning note"
