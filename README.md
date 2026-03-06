@@ -74,6 +74,50 @@ npm run prisma:seed
 npm run dev
 ```
 
+## Local container workflow (app + PostgreSQL)
+
+### Prerequisites
+
+- Docker Engine with Compose plugin
+
+### 1) Prepare environment
+
+```bash
+cp .env.example .env
+```
+
+Update any secrets/keys in `.env` (especially `AUTH_SECRET`).
+
+### 2) Start the stack
+
+```bash
+docker compose up --build
+```
+
+This starts:
+
+- `db`: PostgreSQL 16 with persistent volume
+- `app`: production-style Next.js container built from the multi-stage `Dockerfile`
+
+### 3) Stop the stack
+
+```bash
+docker compose down
+```
+
+To remove database data too:
+
+```bash
+docker compose down -v
+```
+
+## Docker image notes
+
+- Uses a **multi-stage build** to keep runtime image small and deterministic.
+- Builds Next.js with `output: 'standalone'` for minimal runtime footprint.
+- Runs as a **non-root** `nextjs` user in the final stage.
+- Does not bake secrets into the image; configuration is injected through environment variables.
+
 ## Authentication
 
 This storefront uses **Auth.js / NextAuth (App Router)** with a Prisma adapter.
@@ -102,6 +146,24 @@ Use `prisma migrate deploy` in deployment pipelines:
 ```bash
 npm run prisma:migrate:deploy
 ```
+
+## Continuous Integration
+
+GitHub Actions workflow is defined in `.github/workflows/ci.yml` and runs on pushes to `main` and pull requests.
+
+Pipeline checks:
+
+1. `npm install --no-audit --no-fund`
+2. `npm run prisma:generate`
+3. `npx prisma validate`
+4. `npm run lint`
+5. `npm run typecheck`
+6. `npm run build`
+7. `docker build` smoke check
+
+Caching:
+
+- Uses `actions/setup-node` with npm cache enabled for reproducible and faster installs.
 
 ## Scripts
 
@@ -206,8 +268,6 @@ stripe listen --forward-to localhost:3000/api/stripe/webhook
    - success -> `/checkout/success?session_id=...`
    - cancel -> `/checkout/cancel`
 
-
-
 ## Admin area foundation
 
 A production-minded admin shell is available under `/admin` with defense-in-depth protection:
@@ -222,3 +282,11 @@ A production-minded admin shell is available under `/admin` with defense-in-dept
   - `/admin/taxonomy` category/collection management shell
 
 Image handling strategy is URL-first for now (upload-provider agnostic), preparing for a future storage integration (S3/Cloudinary/etc.) that returns durable URLs.
+
+## Deployment readiness checklist
+
+- Ensure production env vars are set (`DATABASE_URL`, `AUTH_SECRET`, `SITE_URL`, Stripe/Auth provider keys as needed).
+- Run database migrations during deploy: `npm run prisma:migrate:deploy`.
+- Run app with `NODE_ENV=production` and health checks at your platform edge/load balancer.
+- Use immutable Docker image tags per commit/sha for rollback safety.
+- Keep secrets in platform secret manager (never commit `.env` files).
