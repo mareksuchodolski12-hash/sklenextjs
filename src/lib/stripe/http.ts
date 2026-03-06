@@ -23,6 +23,16 @@ export type StripeCheckoutSession = {
   } | null;
 };
 
+export type StripeCheckoutSessionLineItem = {
+  id: string;
+  description: string | null;
+  quantity: number;
+  currency: string | null;
+  unitAmountMinor: number | null;
+  amountSubtotalMinor: number | null;
+  amountTotalMinor: number | null;
+};
+
 type StripeEvent = {
   id: string;
   type: string;
@@ -158,6 +168,95 @@ export async function retrieveStripeCheckoutSession(
           }
         : null,
   };
+}
+
+export async function retrieveStripeCheckoutSessionLineItems(
+  sessionId: string,
+): Promise<StripeCheckoutSessionLineItem[]> {
+  const items: StripeCheckoutSessionLineItem[] = [];
+  let startingAfter: string | null = null;
+  let pageCount = 0;
+
+  while (true) {
+    pageCount += 1;
+    if (pageCount > 100) {
+      throw new Error('Exceeded Stripe checkout line item pagination limit.');
+    }
+
+    const endpoint = new URL(`https://api.stripe.com/v1/checkout/sessions/${sessionId}/line_items`);
+    endpoint.searchParams.set('limit', '100');
+    if (startingAfter) {
+      endpoint.searchParams.set('starting_after', startingAfter);
+    }
+
+    const response = await fetch(endpoint, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${getStripeSecretKey()}`,
+      },
+      cache: 'no-store',
+    });
+
+    const json = (await response.json()) as Record<string, unknown>;
+
+    if (!response.ok) {
+      const error = typeof json.error === 'object' && json.error ? json.error : null;
+      const message =
+        error && typeof (error as { message?: unknown }).message === 'string'
+          ? (error as { message: string }).message
+          : 'Stripe API request failed.';
+      throw new Error(message);
+    }
+
+    const pageData = Array.isArray(json.data) ? json.data : [];
+    const normalizedPage = pageData
+      .filter((value): value is Record<string, unknown> => typeof value === 'object' && value !== null)
+      .map((item) => {
+        const id = typeof item.id === 'string' && item.id ? item.id : null;
+        if (!id) {
+          throw new Error('Stripe line item is missing a valid id.');
+        }
+
+        const quantity =
+          typeof item.quantity === 'number' &&
+          Number.isFinite(item.quantity) &&
+          Number.isInteger(item.quantity) &&
+          item.quantity > 0
+            ? item.quantity
+            : null;
+        if (quantity === null) {
+          throw new Error(`Stripe line item ${id} has an invalid quantity.`);
+        }
+
+        const price =
+          typeof item.price === 'object' && item.price
+            ? (item.price as Record<string, unknown>)
+            : undefined;
+
+        return {
+          id,
+          description: typeof item.description === 'string' ? item.description : null,
+          quantity,
+          currency: typeof item.currency === 'string' ? item.currency : null,
+          unitAmountMinor: typeof price?.unit_amount === 'number' ? price.unit_amount : null,
+          amountSubtotalMinor:
+            typeof item.amount_subtotal === 'number' ? item.amount_subtotal : null,
+          amountTotalMinor: typeof item.amount_total === 'number' ? item.amount_total : null,
+        };
+      });
+
+    items.push(...normalizedPage);
+
+    const hasMore = json.has_more === true;
+    const lastItem = normalizedPage.at(-1);
+    if (!hasMore || !lastItem?.id) {
+      break;
+    }
+
+    startingAfter = lastItem.id;
+  }
+
+  return items;
 }
 
 function parseStripeSignature(signatureHeader: string) {
