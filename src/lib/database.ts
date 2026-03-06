@@ -13,3 +13,13 @@ export const databaseConfig: DatabaseConfig = {
 export function getDatabaseUrl() {
   return process.env[databaseConfig.urlEnvKey];
 }
+
+export function requireDatabaseUrl() {
+  const url = getDatabaseUrl();
+
+  if (!url) {
+    throw new Error(`Missing required environment variable: ${databaseConfig.urlEnvKey}`);
+  }
+
+  return url;
+}

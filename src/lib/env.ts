@@ -1,4 +1,6 @@
-const requiredInProduction = ['DATABASE_URL'] as const;
+import { databaseConfig } from '@/lib/database';
+
+const requiredInProduction = [databaseConfig.urlEnvKey] as const;
 
 export function validateServerEnv() {
   if (process.env.NODE_ENV !== 'production') {

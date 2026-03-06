@@ -1,0 +1,193 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum StockStatus {
+  in_stock
+  low_stock
+  out_of_stock
+  preorder
+}
+
+enum ProductDifficulty {
+  easy
+  moderate
+  advanced
+}
+
+enum WateringLevel {
+  low
+  moderate
+  high
+}
+
+enum SunlightRequirement {
+  full_sun
+  partial_shade
+  full_shade
+}
+
+enum AttributeValueType {
+  text
+  number
+  boolean
+}
+
+model Product {
+  id                 String            @id @default(cuid())
+  slug               String            @unique
+  name               String
+  shortDescription   String
+  longDescription    String
+  sku                String            @unique
+  price              Decimal           @db.Decimal(10, 2)
+  compareAtPrice     Decimal?          @db.Decimal(10, 2)
+  featured           Boolean           @default(false)
+  stockStatus        StockStatus       @default(in_stock)
+  isActive           Boolean           @default(true)
+  trackInventory     Boolean           @default(true)
+  allowBackorder     Boolean           @default(false)
+  quantityOnHand     Int               @default(0)
+  quantityReserved   Int               @default(0)
+  lowStockThreshold  Int               @default(5)
+  minHardinessZone   Int?
+  maxHardinessZone   Int?
+  sunlight           SunlightRequirement
+  watering           WateringLevel
+  difficulty         ProductDifficulty
+  floweringSeasons   String[]
+  colorPalette       String[]
+  styles             String[]
+  effects            String[]
+  tags               ProductTag[]
+  categoryId         String
+  category           Category          @relation(fields: [categoryId], references: [id])
+  images             ProductImage[]
+  collections        ProductCollection[]
+  attributes         ProductAttribute[]
+  relatedProducts    ProductRelation[] @relation("ProductRelationSource")
+  relatedToProducts  ProductRelation[] @relation("ProductRelationTarget")
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([categoryId])
+  @@index([featured, stockStatus])
+  @@index([isActive])
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  alt       String
+  position  Int      @default(0)
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([productId, position])
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  name        String
+  description String?
+  imageUrl    String?
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Collection {
+  id          String              @id @default(cuid())
+  slug        String              @unique
+  title       String
+  subtitle    String?
+  description String?
+  isFeatured  Boolean             @default(false)
+  products    ProductCollection[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+}
+
+model ProductCollection {
+  productId     String
+  collectionId  String
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  product       Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  collection    Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@id([productId, collectionId])
+  @@index([collectionId, sortOrder])
+}
+
+model Tag {
+  id        String       @id @default(cuid())
+  slug      String       @unique
+  label     String
+  products  ProductTag[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+}
+
+model ProductTag {
+  productId String
+  tagId     String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([productId, tagId])
+  @@index([tagId])
+}
+
+model ProductAttribute {
+  id           String             @id @default(cuid())
+  productId    String
+  product      Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  slug         String
+  name         String
+  valueType    AttributeValueType @default(text)
+  valueText    String?
+  valueNumber  Decimal?           @db.Decimal(10, 2)
+  valueBoolean Boolean?
+  unit         String?
+  isFilterable Boolean            @default(true)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@index([productId])
+  @@index([slug])
+}
+
+model ProductRelation {
+  sourceProductId String
+  targetProductId String
+  reason          String?
+  createdAt       DateTime @default(now())
+  sourceProduct   Product  @relation("ProductRelationSource", fields: [sourceProductId], references: [id], onDelete: Cascade)
+  targetProduct   Product  @relation("ProductRelationTarget", fields: [targetProductId], references: [id], onDelete: Cascade)
+
+  @@id([sourceProductId, targetProductId])
+  @@index([targetProductId])
+}
+
+model SavedDiscovery {
+  id            String   @id @default(cuid())
+  email         String?
+  sessionId     String?
+  title         String?
+  criteria      Json
+  resultSlugs   String[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([email])
+  @@index([sessionId])
+}
