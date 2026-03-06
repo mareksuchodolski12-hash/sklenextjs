@@ -6,6 +6,10 @@ import {
   type StripeCheckoutSessionLineItem,
 } from '@/lib/stripe/http';
 import type { StripeWebhookEvent } from '@/lib/stripe/webhook';
+import {
+  sendOrderConfirmationEmail,
+  type OrderConfirmationEmailPayload,
+} from '@/server/email/order-confirmation';
 
 type WebhookProcessingStatus = 'processed' | 'ignored';
 
@@ -38,7 +42,8 @@ type StripeWebhookEventStore = {
 };
 
 type StripeWebhookOrderStore = {
-  upsert(args: Record<string, unknown>): Promise<{ id: string }>;
+  findUnique(args: Record<string, unknown>): Promise<{ id: string; completedAt: Date | null } | null>;
+  upsert(args: Record<string, unknown>): Promise<{ id: string; completedAt: Date | null }>;
 };
 
 type StripeWebhookOrderItemStore = {
@@ -64,6 +69,7 @@ type StripeWebhookPersistenceClient = StripeWebhookTransactionClient & {
 type StripeWebhookProcessingDependencies = {
   prismaClient: StripeWebhookPersistenceClient;
   retrieveLineItems(sessionId: string): Promise<StripeCheckoutSessionLineItem[]>;
+  sendConfirmationEmail(payload: OrderConfirmationEmailPayload): Promise<void>;
   now(): Date;
 };
 
@@ -108,13 +114,14 @@ function isUniqueConstraintError(error: unknown): boolean {
 const defaultProcessingDependencies: StripeWebhookProcessingDependencies = {
   prismaClient: prisma as unknown as StripeWebhookPersistenceClient,
   retrieveLineItems: retrieveStripeCheckoutSessionLineItems,
+  sendConfirmationEmail: sendOrderConfirmationEmail,
   now: () => new Date(),
 };
 
 export function createStripeWebhookEventProcessor(
   overrides: Partial<StripeWebhookProcessingDependencies> = {},
 ) {
-  const { prismaClient, retrieveLineItems, now } = {
+  const { prismaClient, retrieveLineItems, sendConfirmationEmail, now } = {
     ...defaultProcessingDependencies,
     ...overrides,
   };
@@ -133,6 +140,10 @@ export function createStripeWebhookEventProcessor(
           : null);
 
       const lineItems = await retrieveLineItems(sessionId);
+      const existingOrder = await prismaClient.order.findUnique({
+        where: { stripeSessionId: sessionId },
+        select: { id: true, completedAt: true },
+      });
 
       const orderMetadata = asJsonObject(event.data.object.metadata);
       const currency = asString(event.data.object.currency);
@@ -149,7 +160,7 @@ export function createStripeWebhookEventProcessor(
         lineItems: lineItems.length,
       });
 
-      await prismaClient.$transaction(async (tx) => {
+      const order = await prismaClient.$transaction(async (tx) => {
         const order = await tx.order.upsert({
           where: { stripeSessionId: sessionId },
           create: {
@@ -214,7 +225,43 @@ export function createStripeWebhookEventProcessor(
             raw: event.data.object as Prisma.InputJsonValue,
           },
         });
+
+        return order;
       });
+
+      if (!existingOrder?.completedAt && order.completedAt !== null) {
+        try {
+          await sendConfirmationEmail({
+            orderReference: order.id,
+            customerEmail,
+            currency,
+            totalMinor: amountTotalMinor,
+            items: lineItems.map((item) => ({
+              description: item.description ?? 'No description provided',
+              quantity: item.quantity,
+              amountTotalMinor: item.amountTotalMinor,
+              currency: item.currency,
+            })),
+          });
+
+          console.info('[stripe-webhook] order confirmation email sent', {
+            eventId: event.id,
+            sessionId,
+            orderReference: order.id,
+            customerEmail,
+          });
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : 'Unknown order confirmation email failure.';
+          console.error('[stripe-webhook] order confirmation email failed', {
+            eventId: event.id,
+            sessionId,
+            orderReference: order.id,
+            customerEmail,
+            message,
+          });
+        }
+      }
 
       return 'processed';
     },

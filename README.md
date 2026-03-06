@@ -231,7 +231,7 @@ This project includes a production-minded Stripe checkout foundation:
 - `POST /api/checkout/session` creates Stripe Checkout Sessions server-side.
 - `/checkout` collects customer, delivery, and billing details before redirecting to Stripe.
 - `/checkout/success` and `/checkout/cancel` provide return surfaces after Stripe flow completion.
-- `POST /api/stripe/webhook` verifies Stripe signatures and provides a safe skeleton for order persistence.
+- `POST /api/stripe/webhook` verifies Stripe signatures, persists completed orders idempotently, and sends order confirmation emails.
 
 ### Security and architecture notes
 
@@ -252,7 +252,7 @@ stripe listen --forward-to localhost:3000/api/stripe/webhook
 
 3. Copy the printed webhook signing secret into `STRIPE_WEBHOOK_SECRET`.
 
-> Note: webhook now writes `event.id` receipts to `StripeWebhookEvent` for replay protection; you still need domain order persistence logic for completed checkout sessions.
+> Note: webhook writes `event.id` receipts to `StripeWebhookEvent` for replay protection and sends confirmation email only when an order transitions to a finalized state.
 
 ### Manual Stripe setup checklist
 
