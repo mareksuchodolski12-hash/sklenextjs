@@ -1,0 +1,232 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+enum StockStatus {
+  IN_STOCK
+  LOW_STOCK
+  OUT_OF_STOCK
+  PREORDER
+}
+
+enum ProductDifficulty {
+  EASY
+  MODERATE
+  ADVANCED
+}
+
+enum WateringLevel {
+  LOW
+  MODERATE
+  HIGH
+}
+
+enum SunlightRequirement {
+  FULL_SUN
+  PARTIAL_SHADE
+  FULL_SHADE
+}
+
+enum FloweringSeason {
+  SPRING
+  SUMMER
+  AUTUMN
+  WINTER
+}
+
+enum GardenStyle {
+  COTTAGE
+  CONTEMPORARY
+  MEDITERRANEAN
+  WILDLIFE_FRIENDLY
+  SHADE_GARDEN
+  MINIMALIST
+}
+
+enum GardenEffect {
+  FRAGRANCE
+  CUTTING_GARDEN
+  POLLINATOR_HABITAT
+  STRUCTURAL_INTEREST
+  GROUND_COVER
+  FOCAL_POINT
+}
+
+enum ColorTone {
+  WHITE
+  CREAM
+  PINK
+  PURPLE
+  BLUE
+  YELLOW
+  ORANGE
+  RED
+  GREEN
+  SILVER
+}
+
+enum MerchandisingBadge {
+  NEW_ARRIVAL
+  BESTSELLER
+}
+
+model Product {
+  id                  String               @id @default(cuid())
+  sku                 String               @unique
+  slug                String               @unique
+  name                String
+  shortDescription    String
+  longDescription     String
+  priceCents          Int
+  compareAtPriceCents Int?
+  trackInventory      Boolean              @default(true)
+  inventoryQuantity   Int                  @default(0)
+  lowStockThreshold   Int                  @default(3)
+  allowBackorder      Boolean              @default(false)
+  stockStatus         StockStatus          @default(IN_STOCK)
+  featured            Boolean              @default(false)
+  pollinatorFriendly  Boolean              @default(false)
+  petSafe             Boolean?
+  sunlight            SunlightRequirement
+  watering            WateringLevel
+  difficulty          ProductDifficulty
+  heightCm            Int?
+  spreadCm            Int?
+  hardinessZoneMin    Int?
+  hardinessZoneMax    Int?
+  plantingNotes       String?
+  careNotes           String[]             @default([])
+  idealPlacement      String[]             @default([])
+  badges              MerchandisingBadge[]
+  floweringSeasons    FloweringSeason[]
+  styles              GardenStyle[]
+  effects             GardenEffect[]
+  colorPalette        ColorTone[]
+  categoryId          String
+  category            Category             @relation(fields: [categoryId], references: [id])
+  images              ProductImage[]
+  attributes          ProductAttribute[]
+  tags                ProductTag[]
+  collections         CollectionProduct[]
+  relatedFrom         ProductRelation[]    @relation("ProductRelationFrom")
+  relatedTo           ProductRelation[]    @relation("ProductRelationTo")
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@index([categoryId])
+  @@index([featured, stockStatus])
+  @@index([sunlight, watering, difficulty])
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  alt       String
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([productId, position])
+}
+
+model ProductAttribute {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  key       String
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+  @@index([key, value])
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  name        String
+  description String?
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Collection {
+  id          String              @id @default(cuid())
+  slug        String              @unique
+  title       String
+  subtitle    String?
+  description String?
+  season      FloweringSeason?
+  style       GardenStyle?
+  active      Boolean             @default(true)
+  products    CollectionProduct[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+}
+
+model CollectionProduct {
+  collectionId String
+  productId    String
+  position     Int        @default(0)
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([collectionId, productId])
+  @@index([productId])
+  @@index([collectionId, position])
+}
+
+model Tag {
+  id        String      @id @default(cuid())
+  slug      String      @unique
+  label     String
+  products  ProductTag[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
+
+model ProductTag {
+  productId String
+  tagId     String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([productId, tagId])
+  @@index([tagId])
+}
+
+model ProductRelation {
+  fromProductId String
+  toProductId   String
+  score         Float?
+  reason        String?
+  createdAt     DateTime @default(now())
+  fromProduct   Product  @relation("ProductRelationFrom", fields: [fromProductId], references: [id], onDelete: Cascade)
+  toProduct     Product  @relation("ProductRelationTo", fields: [toProductId], references: [id], onDelete: Cascade)
+
+  @@id([fromProductId, toProductId])
+  @@index([toProductId])
+}
+
+model SavedDiscovery {
+  id           String   @id @default(cuid())
+  slug         String   @unique
+  title        String?
+  notes        String?
+  sessionToken String?
+  criteria     Json
+  results      Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([sessionToken])
+}

@@ -10,3 +10,9 @@ export function validateServerEnv() {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
 }
+
+export function assertDatabaseEnv() {
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL is required for Prisma and PostgreSQL connectivity.');
+  }
+}
