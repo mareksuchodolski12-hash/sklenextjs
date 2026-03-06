@@ -1,21 +1,19 @@
-import type { Stripe } from 'stripe';
 import Link from 'next/link';
 
 import { Container } from '@/components/layout/container';
-import { getStripeServerClient } from '@/lib/stripe/server';
+import { retrieveStripeCheckoutSession, type StripeCheckoutSession } from '@/lib/stripe/http';
 
 type SearchParams = {
   session_id?: string;
 };
 
-async function getSession(sessionId?: string): Promise<Stripe.Checkout.Session | null> {
+async function getSession(sessionId?: string): Promise<StripeCheckoutSession | null> {
   if (!sessionId) {
     return null;
   }
 
   try {
-    const stripe = getStripeServerClient();
-    return await stripe.checkout.sessions.retrieve(sessionId);
+    return await retrieveStripeCheckoutSession(sessionId);
   } catch {
     return null;
   }
