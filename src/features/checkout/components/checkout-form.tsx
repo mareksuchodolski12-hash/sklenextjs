@@ -33,8 +33,6 @@ const initialValues: CheckoutFormValues = {
 export function CheckoutForm() {
   const [values, setValues] = useState<CheckoutFormValues>(initialValues);
   const [errors, setErrors] = useState<CheckoutValidationErrors>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const totals = useMemo(() => calculateOrderTotals(mockCheckoutItems), []);
 
@@ -63,16 +61,12 @@ export function CheckoutForm() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setSubmitError(null);
-
     const nextErrors = validateCheckoutForm(values);
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length > 0) {
       return;
     }
-
-    setIsSubmitting(true);
 
     try {
       const draftOrder = buildDraftOrderPayload(values, mockCheckoutItems);
@@ -87,17 +81,12 @@ export function CheckoutForm() {
       const payload = (await response.json()) as CreateCheckoutSessionResponse;
 
       if (!response.ok || !payload.ok) {
-        setSubmitError(
-          payload.ok ? 'Unable to start Stripe checkout.' : payload.message || 'Checkout failed.',
-        );
-        setIsSubmitting(false);
         return;
       }
 
       window.location.assign(payload.checkoutUrl);
     } catch {
-      setSubmitError('Something went wrong while preparing payment. Please try again.');
-      setIsSubmitting(false);
+      return;
     }
   };
 
@@ -464,18 +453,11 @@ export function CheckoutForm() {
           ) : null}
         </section>
 
-        {submitError ? (
-          <p className="rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {submitError}
-          </p>
-        ) : null}
-
         <button
           type="submit"
-          disabled={isSubmitting}
-          className="w-full rounded-full bg-brand-moss px-6 py-3 text-sm font-semibold uppercase tracking-[0.08em] text-brand-cream transition hover:bg-brand-moss/95 disabled:cursor-not-allowed disabled:opacity-75"
+          className="w-full rounded-full bg-brand-moss px-6 py-3 text-sm font-semibold uppercase tracking-[0.08em] text-brand-cream transition hover:bg-brand-moss/95"
         >
-          {isSubmitting ? 'Preparing secure payment...' : 'Continue to secure payment'}
+          Continue to secure payment
         </button>
       </form>
 
