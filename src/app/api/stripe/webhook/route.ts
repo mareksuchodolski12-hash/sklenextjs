@@ -1,8 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { getStripeWebhookSecret } from '@/lib/stripe/config';
-import { getErrorMessage, isStripeError } from '@/lib/stripe/errors';
-import { getStripeServerClient } from '@/lib/stripe/server';
+import { constructStripeEvent } from '@/lib/stripe/http';
 
 export const runtime = 'nodejs';
 
@@ -19,8 +17,7 @@ export async function POST(request: NextRequest) {
   const rawPayload = await request.text();
 
   try {
-    const stripe = getStripeServerClient();
-    const event = stripe.webhooks.constructEvent(rawPayload, signature, getStripeWebhookSecret());
+    const event = constructStripeEvent(rawPayload, signature);
 
     switch (event.type) {
       case 'checkout.session.completed': {
@@ -40,13 +37,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    if (isStripeError(error)) {
-      return NextResponse.json({ ok: false, message: error.message }, { status: 400 });
-    }
-
-    return NextResponse.json(
-      { ok: false, message: getErrorMessage(error, 'Unable to process Stripe webhook.') },
-      { status: 500 },
-    );
+    const message = error instanceof Error ? error.message : 'Unable to process Stripe webhook.';
+    const status = message.includes('signature') ? 400 : 500;
+    return NextResponse.json({ ok: false, message }, { status });
   }
 }

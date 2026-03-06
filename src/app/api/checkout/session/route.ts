@@ -1,15 +1,12 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import Stripe from 'stripe';
-
 import { stripeCatalogById, type StripeCatalogItemId } from '@/features/checkout/cart';
 import type { CheckoutAddress, CheckoutLineItem } from '@/features/checkout/types';
 import type {
   CreateCheckoutSessionRequest,
   CreateCheckoutSessionResponse,
 } from '@/features/checkout/stripe-types';
-import { getErrorMessage, isStripeError } from '@/lib/stripe/errors';
-import { getStripeServerClient } from '@/lib/stripe/server';
+import { createStripeCheckoutSession, type StripeCheckoutLineItem } from '@/lib/stripe/http';
 
 const SHIPPING_FEE_MINOR = 800;
 const FREE_SHIPPING_THRESHOLD_MINOR = 12000;
@@ -150,14 +147,13 @@ export async function POST(request: NextRequest) {
       return buildError('INVALID_CART', 'No valid cart lines were provided.', 400);
     }
 
-    const stripe = getStripeServerClient();
     const subtotalMinor = lines.reduce(
       (sum, line) => sum + stripeCatalogById[line.id].unitAmountMinor * line.quantity,
       0,
     );
     const deliveryMinor = subtotalMinor >= FREE_SHIPPING_THRESHOLD_MINOR ? 0 : SHIPPING_FEE_MINOR;
 
-    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = lines.map((line) => ({
+    const lineItems: StripeCheckoutLineItem[] = lines.map((line) => ({
       quantity: line.quantity,
       price_data: {
         currency: CURRENCY,
@@ -184,19 +180,12 @@ export async function POST(request: NextRequest) {
     }
 
     const siteUrl = getSiteUrl();
-    const session = await stripe.checkout.sessions.create({
+    const session = await createStripeCheckoutSession({
       mode: 'payment',
-      success_url: `${siteUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${siteUrl}/checkout/cancel`,
-      customer_email: body.draftOrder.customer.email || undefined,
-      client_reference_id: `draft-${Date.now()}`,
-      billing_address_collection: 'required',
-      shipping_address_collection: {
-        allowed_countries: ['GB'],
-      },
-      phone_number_collection: {
-        enabled: true,
-      },
+      successUrl: `${siteUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${siteUrl}/checkout/cancel`,
+      customerEmail: body.draftOrder.customer.email || undefined,
+      clientReferenceId: `draft-${Date.now()}`,
       metadata: {
         deliveryMethod: body.draftOrder.delivery.method,
         preferredDeliveryDate: body.draftOrder.delivery.preferredDate,
@@ -204,7 +193,7 @@ export async function POST(request: NextRequest) {
         gardeningNote: body.draftOrder.delivery.gardeningNote.slice(0, 500),
         newsletterOptIn: String(body.draftOrder.customer.newsletterOptIn),
       },
-      line_items: lineItems,
+      lineItems,
     });
 
     if (!session.url || !session.id) {
@@ -221,11 +210,8 @@ export async function POST(request: NextRequest) {
       return buildError('BAD_REQUEST', 'Malformed JSON payload.', 400);
     }
 
-    if (isStripeError(error)) {
-      return buildError('STRIPE_ERROR', error.message, 502);
-    }
-
-    const errorMessage = getErrorMessage(error, 'Unable to create checkout session.');
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unable to create checkout session.';
     if (errorMessage.includes('STRIPE_SECRET_KEY')) {
       return buildError('CONFIG_ERROR', errorMessage, 500);
     }
