@@ -38,6 +38,7 @@ function createWebhookEvent(): StripeWebhookEvent {
 
 function createHarness(options?: {
   failRetrieveAttempts?: number;
+  onRetrieveLineItems?: () => Promise<void> | void;
 }) {
   const events = new Map<string, EventRecord>();
   let failRetrieveAttempts = options?.failRetrieveAttempts ?? 0;
@@ -133,6 +134,8 @@ function createHarness(options?: {
         throw new Error('Temporary Stripe line-item retrieval failure.');
       }
 
+      await options?.onRetrieveLineItems?.();
+
       return [
         {
           id: 'li_1',
@@ -219,6 +222,54 @@ test('keeps recovered event immutable on repeated retries', async () => {
   const repeatedRetryResult = await harness.processStripeWebhookEvent(event);
 
   assert.deepEqual(repeatedRetryResult, {
+    status: 'ignored',
+    duplicate: true,
+  });
+  assert.equal(harness.readEvent(event.id)?.status, 'processed');
+  assert.equal(harness.counters.orderUpsert, 1);
+  assert.equal(harness.counters.orderItemCreateMany, 1);
+  assert.equal(harness.counters.paymentUpsert, 1);
+});
+
+test('allows only one reclaim processor when a failed event is retried concurrently', async () => {
+  const retryControl: { release: () => void } = {
+    release: () => undefined,
+  };
+  const retryCompletionGate = new Promise<void>((resolve) => {
+    retryControl.release = resolve;
+  });
+
+  const retryHandlerControl: { started: () => void } = {
+    started: () => undefined,
+  };
+  const retryHandlerStartedPromise = new Promise<void>((resolve) => {
+    retryHandlerControl.started = resolve;
+  });
+
+  const harness = createHarness({
+    failRetrieveAttempts: 1,
+    onRetrieveLineItems: async () => {
+      retryHandlerControl.started();
+      await retryCompletionGate;
+    },
+  });
+  const event = createWebhookEvent();
+
+  await assert.rejects(() => harness.processStripeWebhookEvent(event));
+  assert.equal(harness.readEvent(event.id)?.status, 'failed');
+
+  const firstRetry = harness.processStripeWebhookEvent(event);
+  await retryHandlerStartedPromise;
+
+  const duplicateRetry = await harness.processStripeWebhookEvent(event);
+  retryControl.release();
+  const firstRetryResult = await firstRetry;
+
+  assert.deepEqual(firstRetryResult, {
+    status: 'processed',
+    duplicate: false,
+  });
+  assert.deepEqual(duplicateRetry, {
     status: 'ignored',
     duplicate: true,
   });
