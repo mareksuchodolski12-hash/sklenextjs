@@ -100,8 +100,8 @@ const stripeWebhookHandlers: Record<string, StripeWebhookHandler> = {
         await tx.orderItem.createMany({
           data: lineItems.map((item) => ({
             orderId: order.id,
-            stripeLineItemId: item.id || null,
-            description: item.description ?? 'Stripe line item',
+            stripeLineItemId: item.id,
+            description: item.description ?? 'No description provided',
             quantity: item.quantity,
             currency: item.currency,
             unitAmountMinor: item.unitAmountMinor,
