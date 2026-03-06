@@ -173,7 +173,7 @@ async function reserveWebhookEvent(event: StripeWebhookEvent): Promise<boolean> 
     return true;
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      const claimedFailedEvent = await prisma.stripeWebhookEvent.updateMany({
+      const failedEventUpdate = await prisma.stripeWebhookEvent.updateMany({
         where: {
           eventId: event.id,
           status: 'failed',
@@ -185,7 +185,7 @@ async function reserveWebhookEvent(event: StripeWebhookEvent): Promise<boolean> 
         },
       });
 
-      return claimedFailedEvent.count > 0;
+      return failedEventUpdate.count > 0;
     }
 
     throw error;
