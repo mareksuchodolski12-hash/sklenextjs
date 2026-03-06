@@ -1,4 +1,5 @@
-import { getFeaturedProducts } from '@/data/mock/catalog-queries';
+import { getFeaturedProducts } from '@/server/catalog/queries';
+import { getHomeCategories } from '@/server/home/queries';
 import { BrowseMoodsSection } from '@/features/home/sections/browse-moods-section';
 import { BrowseNeedsSection } from '@/features/home/sections/browse-needs-section';
 import { FeaturedCategoriesSection } from '@/features/home/sections/featured-categories-section';
@@ -8,13 +9,16 @@ import { NewsletterSection } from '@/features/home/sections/newsletter-section';
 import { SeasonalInspirationSection } from '@/features/home/sections/seasonal-inspiration-section';
 import { TrustSection } from '@/features/home/sections/trust-section';
 
-export default function HomePage() {
-  const featuredProducts = getFeaturedProducts().slice(0, 4);
+export default async function HomePage() {
+  const [featuredProducts, homeCategories] = await Promise.all([
+    getFeaturedProducts(4),
+    getHomeCategories(),
+  ]);
 
   return (
     <>
       <HeroSection />
-      <FeaturedCategoriesSection />
+      <FeaturedCategoriesSection categories={homeCategories} />
       <BrowseMoodsSection />
       <BrowseNeedsSection />
       <FeaturedProductsSection products={featuredProducts} />

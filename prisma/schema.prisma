@@ -65,6 +65,7 @@ model Product {
   styles             String[]
   effects            String[]
   tags               ProductTag[]
+  favorites          FavoriteProduct[]
   categoryId         String
   category           Category          @relation(fields: [categoryId], references: [id])
   images             ProductImage[]
@@ -178,16 +179,83 @@ model ProductRelation {
   @@index([targetProductId])
 }
 
+model User {
+  id             String           @id @default(cuid())
+  name           String?
+  email          String?          @unique
+  emailVerified  DateTime?
+  image          String?
+  accounts       Account[]
+  sessions       Session[]
+  favorites      FavoriteProduct[]
+  savedDiscovery SavedDiscovery[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([sessionToken])
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
 model SavedDiscovery {
   id            String   @id @default(cuid())
   email         String?
   sessionId     String?
+  userId        String?
   title         String?
   criteria      Json
   resultSlugs   String[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([email])
   @@index([sessionId])
+  @@index([userId])
+}
+
+model FavoriteProduct {
+  userId    String
+  productId String
+  note      String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([userId, productId])
+  @@index([productId])
 }
