@@ -15,6 +15,7 @@ export const siteConfig = {
   navigation: {
     main: [
       { label: 'Shop Plants', href: '/plants' },
+      { label: 'Discovery Studio', href: '/discovery' },
       { label: 'Garden Styles', href: '#' },
       { label: 'Seasonal Inspiration', href: '#' },
       { label: 'Planting Guides', href: '#' },
