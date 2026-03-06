@@ -1,7 +1,15 @@
 import Link from 'next/link';
 
 import type { Product } from '@/domain/catalog/models';
-import { formatDifficulty, formatLabel, formatPrice, formatProductHeightSpread, formatStockStatus, formatSunlight, formatWatering } from '@/domain/catalog/utils';
+import {
+  formatDifficulty,
+  formatLabel,
+  formatPrice,
+  formatProductHeightSpread,
+  formatStockStatus,
+  formatSunlight,
+  formatWatering,
+} from '@/domain/catalog/utils';
 
 type ProductCardProps = {
   product: Product;
@@ -41,7 +49,9 @@ export function ProductCard({ product }: ProductCardProps) {
       </div>
       <div className="space-y-4 p-5">
         <div>
-          <p className="text-xs uppercase tracking-[0.14em] text-brand-sage">{formatStockStatus(product.stockStatus)}</p>
+          <p className="text-xs uppercase tracking-[0.14em] text-brand-sage">
+            {formatStockStatus(product.stockStatus)}
+          </p>
           <h3 className="mt-1 font-serif text-2xl text-brand-moss">{product.name}</h3>
           <p className="mt-2 text-sm text-brand-charcoal/80">{product.shortDescription}</p>
         </div>
@@ -57,11 +67,13 @@ export function ProductCard({ product }: ProductCardProps) {
           <div>
             <p className="text-lg font-semibold text-brand-moss">{formatPrice(product.price)}</p>
             {product.compareAtPrice ? (
-              <p className="text-xs text-brand-charcoal/50 line-through">{formatPrice(product.compareAtPrice)}</p>
+              <p className="text-xs text-brand-charcoal/50 line-through">
+                {formatPrice(product.compareAtPrice)}
+              </p>
             ) : null}
           </div>
           <Link
-            href="#"
+            href={`/plants/${product.slug}`}
             className="rounded-full border border-brand-moss px-4 py-2 text-xs font-semibold uppercase tracking-wide text-brand-moss transition hover:bg-brand-moss hover:text-brand-cream"
           >
             View plant
