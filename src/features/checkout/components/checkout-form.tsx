@@ -3,7 +3,10 @@
 import { type FormEvent, useMemo, useState } from 'react';
 
 import type { CheckoutFormValues, CheckoutValidationErrors } from '@/features/checkout/types';
+# codex/implement-checkout-foundation-for-flower-store-hu07kk
 import type { CreateCheckoutSessionResponse } from '@/features/checkout/stripe-types';
+#
+# main
 import {
   buildDraftOrderPayload,
   calculateOrderTotals,
@@ -33,6 +36,10 @@ const initialValues: CheckoutFormValues = {
 export function CheckoutForm() {
   const [values, setValues] = useState<CheckoutFormValues>(initialValues);
   const [errors, setErrors] = useState<CheckoutValidationErrors>({});
+# codex/implement-checkout-foundation-for-flower-store-hu07kk
+#
+  const [submittedPayloadPreview, setSubmittedPayloadPreview] = useState<string | null>(null);
+# main
 
   const totals = useMemo(() => calculateOrderTotals(mockCheckoutItems), []);
 
@@ -59,12 +66,17 @@ export function CheckoutForm() {
     }));
   };
 
+# codex/implement-checkout-foundation-for-flower-store-hu07kk
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+#
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+# main
     event.preventDefault();
     const nextErrors = validateCheckoutForm(values);
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length > 0) {
+# codex/implement-checkout-foundation-for-flower-store-hu07kk
       return;
     }
 
@@ -88,6 +100,14 @@ export function CheckoutForm() {
     } catch {
       return;
     }
+#
+      setSubmittedPayloadPreview(null);
+      return;
+    }
+
+    const payload = buildDraftOrderPayload(values, mockCheckoutItems);
+    setSubmittedPayloadPreview(JSON.stringify(payload, null, 2));
+# main
   };
 
   return (
@@ -457,7 +477,11 @@ export function CheckoutForm() {
           type="submit"
           className="w-full rounded-full bg-brand-moss px-6 py-3 text-sm font-semibold uppercase tracking-[0.08em] text-brand-cream transition hover:bg-brand-moss/95"
         >
+# codex/implement-checkout-foundation-for-flower-store-hu07kk
           Continue to secure payment
+#
+          Continue to payment setup
+# main
         </button>
       </form>
 
@@ -498,10 +522,27 @@ export function CheckoutForm() {
           </dl>
 
           <p className="mt-4 rounded-2xl bg-brand-cream px-3 py-2 text-xs text-brand-charcoal/80">
+# codex/implement-checkout-foundation-for-flower-store-hu07kk
             Secure payment is processed by Stripe. Fulfillment and order orchestration will be wired
             after webhook-driven order persistence is implemented.
           </p>
         </section>
+#
+            Payment processing and order creation hooks are intentionally not enabled yet.
+          </p>
+        </section>
+
+        {submittedPayloadPreview ? (
+          <section className="rounded-3xl border border-brand-sage/20 bg-white p-5 shadow-soft">
+            <p className="text-xs uppercase tracking-[0.14em] text-brand-sage">
+              Draft payload preview
+            </p>
+            <pre className="mt-3 max-h-72 overflow-auto rounded-2xl bg-brand-charcoal p-3 text-xs text-brand-cream">
+              {submittedPayloadPreview}
+            </pre>
+          </section>
+        ) : null}
+# main
       </aside>
     </div>
   );
