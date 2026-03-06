@@ -117,6 +117,7 @@ docker compose down -v
 - Builds Next.js with `output: 'standalone'` for minimal runtime footprint.
 - Runs as a **non-root** `nextjs` user in the final stage.
 - Does not bake secrets into the image; configuration is injected through environment variables.
+- Typography uses local system font stacks (sans/serif) to avoid external Google Fonts fetches during build.
 
 ## Authentication
 
