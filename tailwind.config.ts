@@ -21,7 +21,7 @@ const config: Config = {
       },
       fontFamily: {
         sans: ['system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'sans-serif'],
-        serif: ['Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', 'Georgia', 'serif'],
+        serif: ['Palatino Linotype', 'Palatino', 'Book Antiqua', 'Georgia', 'Times New Roman', 'serif'],
       },
     },
   },
