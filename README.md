@@ -7,8 +7,6 @@ Production-minded Next.js baseline for a premium e-commerce experience focused o
 - Next.js (App Router)
 - TypeScript (strict mode)
 - Tailwind CSS
-- Prisma ORM
-- PostgreSQL
 - ESLint + Next.js rules
 - Prettier + Tailwind class sorting plugin
 
@@ -20,19 +18,13 @@ Production-minded Next.js baseline for a premium e-commerce experience focused o
 npm install
 ```
 
-### 2) Configure environment
-
-```bash
-cp .env.example .env.local
-```
-
-### 3) Start development server
+### 2) Start development server
 
 ```bash
 npm run dev
 ```
 
-### 4) Build for production
+### 3) Build for production
 
 ```bash
 npm run build
@@ -48,67 +40,39 @@ npm run start
 - `npm run typecheck` — run TypeScript checks
 - `npm run format` — format project with Prettier
 - `npm run format:check` — check formatting
-- `npm run prisma:generate` — generate Prisma Client
-- `npm run prisma:migrate:dev` — create + apply local migrations
-- `npm run prisma:migrate:deploy` — apply migrations in deployment
-- `npm run prisma:studio` — inspect data in Prisma Studio
-- `npm run db:seed` — seed starter catalog data
-
-## Prisma + PostgreSQL setup
-
-### Generate Prisma Client
-
-```bash
-npm run prisma:generate
-```
-
-### Create and apply migrations
-
-```bash
-npm run prisma:migrate:dev -- --name init_catalog
-```
-
-### Seed catalog data from existing mocks
-
-```bash
-npm run db:seed
-```
-
-## Prisma schema coverage
-
-The schema is designed to support premium storefront merchandising, filtering, related products, and stock-aware commerce while deferring auth, payments, and full order implementation.
-
-Included models:
-
-- `Product`
-- `ProductImage`
-- `Category`
-- `Collection`
-- `Tag`
-- `CollectionProduct` (ordered collection membership)
-- `ProductTag`
-- `ProductAttribute` (optional extensible key/value fields)
-- `ProductRelation` (related-product graph)
-- `SavedDiscovery` (optional persisted discovery sessions/results)
 
 ## Project Structure
 
 ```text
-prisma/
-  schema.prisma          # PostgreSQL datasource + production-minded catalog schema
-  seed.ts                # Seed strategy using current mock catalog data
 src/
-  app/                   # App Router entrypoints and layouts
-  components/            # Shared UI/layout components
-  config/                # Application-level static configuration
-  features/              # Feature modules (domain-oriented)
-  lib/
-    database.ts          # Database provider/env key config
-    env.ts               # Runtime environment validation helpers
-    prisma.ts            # Prisma client singleton helper
-  styles/                # Global styles
-  types/                 # Shared TypeScript types
+  app/                  # App Router entrypoints and layouts
+  components/           # Shared UI/layout components
+  config/               # Application-level static configuration
+  features/             # Feature modules (domain-oriented)
+  lib/                  # Reusable utilities and server-side helpers
+  styles/               # Global styles
+  types/                # Shared TypeScript types
 ```
+
+## Architecture Notes
+
+- **App Router first**: all routing and shell composition lives in `src/app`.
+- **Feature-oriented growth path**: page-level capabilities should be expanded from `src/features/*`.
+- **Clear server/client boundaries**: initial implementation is server-rendered by default; add `'use client'` only when needed for interactive islands.
+- **Design system posture**: layout primitives live under `src/components` to keep UI predictable.
+- **Operational readiness**: strict TypeScript + linting + formatting provide baseline engineering quality.
+
+## PostgreSQL + Prisma Readiness (without full implementation)
+
+The codebase includes early database shape preparation in `src/lib/database.ts` and environment validation helpers in `src/lib/env.ts`.
+
+### Recommended next steps
+
+1. Add Prisma dependencies and initialize Prisma.
+2. Create `prisma/schema.prisma` with PostgreSQL datasource using `DATABASE_URL`.
+3. Add first domain models (`Product`, `Collection`, `Category`).
+4. Introduce repository/service layer under `src/features/*` for data access isolation.
+5. Add migration and seed workflow for deployment environments.
 
 ## Environment Variables
 
