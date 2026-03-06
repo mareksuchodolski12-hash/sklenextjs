@@ -285,7 +285,9 @@ model Order {
   paymentStatus       String?
   metadata            Json?
   completedAt         DateTime?
+  /// Set while a webhook execution holds the claim to send the confirmation email.
   confirmationEmailSendingAt DateTime?
+  /// Set once confirmation delivery succeeds; prevents any future duplicate sends.
   confirmationEmailSentAt DateTime?
   orderItems          OrderItem[]
   payments            Payment[]

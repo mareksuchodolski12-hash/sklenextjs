@@ -42,7 +42,12 @@ type StripeWebhookEventStore = {
 };
 
 type StripeWebhookOrderStore = {
-  upsert(args: Record<string, unknown>): Promise<{ id: string; completedAt: Date | null }>;
+  upsert(args: Record<string, unknown>): Promise<{
+    id: string;
+    completedAt: Date | null;
+    confirmationEmailSendingAt?: Date | null;
+    confirmationEmailSentAt?: Date | null;
+  }>;
   updateMany(args: Record<string, unknown>): Promise<{ count: number }>;
 };
 
