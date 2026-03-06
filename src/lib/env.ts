@@ -1,6 +1,12 @@
 import { databaseConfig } from '@/lib/database';
 
-const requiredInProduction = [databaseConfig.urlEnvKey, 'AUTH_SECRET'] as const;
+const requiredInProduction = [
+  databaseConfig.urlEnvKey,
+  'AUTH_SECRET',
+  'STRIPE_SECRET_KEY',
+  'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY',
+  'STRIPE_WEBHOOK_SECRET',
+] as const;
 
 export function validateServerEnv() {
   if (process.env.NODE_ENV !== 'production') {
