@@ -20,8 +20,8 @@ const config: Config = {
         'brand-radial': 'radial-gradient(circle at top right, rgba(233, 213, 201, 0.4), transparent 60%)',
       },
       fontFamily: {
-        sans: ['var(--font-inter)', 'system-ui', 'sans-serif'],
-        serif: ['var(--font-playfair)', 'Georgia', 'serif'],
+        sans: ['system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'sans-serif'],
+        serif: ['Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', 'Georgia', 'serif'],
       },
     },
   },
