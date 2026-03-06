@@ -23,6 +23,16 @@ export type StripeCheckoutSession = {
   } | null;
 };
 
+export type StripeCheckoutSessionLineItem = {
+  id: string;
+  description: string | null;
+  quantity: number;
+  currency: string | null;
+  unitAmountMinor: number | null;
+  amountSubtotalMinor: number | null;
+  amountTotalMinor: number | null;
+};
+
 type StripeEvent = {
   id: string;
   type: string;
@@ -158,6 +168,57 @@ export async function retrieveStripeCheckoutSession(
           }
         : null,
   };
+}
+
+export async function retrieveStripeCheckoutSessionLineItems(
+  sessionId: string,
+): Promise<StripeCheckoutSessionLineItem[]> {
+  const response = await fetch(
+    `https://api.stripe.com/v1/checkout/sessions/${sessionId}/line_items?limit=100`,
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${getStripeSecretKey()}`,
+      },
+      cache: 'no-store',
+    },
+  );
+
+  const json = (await response.json()) as Record<string, unknown>;
+
+  if (!response.ok) {
+    const error = typeof json.error === 'object' && json.error ? json.error : null;
+    const message =
+      error && typeof (error as { message?: unknown }).message === 'string'
+        ? (error as { message: string }).message
+        : 'Stripe API request failed.';
+    throw new Error(message);
+  }
+
+  const data = Array.isArray(json.data) ? json.data : [];
+
+  return data
+    .filter((value): value is Record<string, unknown> => typeof value === 'object' && value !== null)
+    .map((item) => {
+      const price =
+        typeof item.price === 'object' && item.price
+          ? (item.price as Record<string, unknown>)
+          : undefined;
+
+      return {
+        id: typeof item.id === 'string' ? item.id : '',
+        description: typeof item.description === 'string' ? item.description : null,
+        quantity:
+          typeof item.quantity === 'number' && Number.isFinite(item.quantity)
+            ? Math.max(1, Math.floor(item.quantity))
+            : 1,
+        currency: typeof item.currency === 'string' ? item.currency : null,
+        unitAmountMinor: typeof price?.unit_amount === 'number' ? price.unit_amount : null,
+        amountSubtotalMinor:
+          typeof item.amount_subtotal === 'number' ? item.amount_subtotal : null,
+        amountTotalMinor: typeof item.amount_total === 'number' ? item.amount_total : null,
+      };
+    });
 }
 
 function parseStripeSignature(signatureHeader: string) {

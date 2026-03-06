@@ -274,3 +274,52 @@ model StripeWebhookEvent {
   @@index([createdAt])
   @@index([status])
 }
+
+model Order {
+  id                  String      @id @default(cuid())
+  stripeSessionId     String      @unique
+  customerEmail       String?
+  currency            String?
+  amountSubtotalMinor Int?
+  amountTotalMinor    Int?
+  paymentStatus       String?
+  metadata            Json?
+  completedAt         DateTime?
+  orderItems          OrderItem[]
+  payments            Payment[]
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+}
+
+model OrderItem {
+  id                  String   @id @default(cuid())
+  orderId             String
+  stripeLineItemId    String?
+  description         String
+  quantity            Int
+  currency            String?
+  unitAmountMinor     Int?
+  amountSubtotalMinor Int?
+  amountTotalMinor    Int?
+  order               Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  createdAt           DateTime @default(now())
+
+  @@index([orderId])
+}
+
+model Payment {
+  id                    String   @id @default(cuid())
+  orderId               String
+  stripeSessionId       String   @unique
+  stripePaymentIntentId String?
+  customerEmail         String?
+  currency              String?
+  amountMinor           Int?
+  status                String
+  raw                   Json?
+  order                 Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([orderId])
+}
