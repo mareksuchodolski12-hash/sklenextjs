@@ -1,7 +1,16 @@
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
 import { auth, authProviders, signIn } from '@/auth';
 import { Container } from '@/components/layout/container';
+import { buildPageMetadata } from '@/lib/seo';
+
+export const metadata: Metadata = buildPageMetadata({
+  title: 'Sign in',
+  description: 'Sign in to save favorites and manage your garden account.',
+  pathname: '/auth/sign-in',
+  noIndex: true,
+});
 
 type SignInPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;

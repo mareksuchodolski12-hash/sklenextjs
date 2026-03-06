@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { Container } from '@/components/layout/container';
-import { getCatalogProducts, getProductBySlug, getRelatedProducts } from '@/server/catalog/queries';
 import type { Product } from '@/domain/catalog/models';
 import { formatLabel, formatPrice, formatStockStatus } from '@/domain/catalog/utils';
 import { ProductGrid } from '@/features/catalog/components/product-grid';
@@ -11,6 +10,10 @@ import { MerchandisingBadges } from '@/features/catalog/components/product-detai
 import { ProductFactsGrid } from '@/features/catalog/components/product-detail/product-facts-grid';
 import { ProductGallery } from '@/features/catalog/components/product-detail/product-gallery';
 import { ProductInfoList } from '@/features/catalog/components/product-detail/product-info-list';
+import { buildPageMetadata, toAbsoluteUrl } from '@/lib/seo';
+import { getCatalogProducts, getProductBySlug, getRelatedProducts } from '@/server/catalog/queries';
+
+export const revalidate = 300;
 
 export async function generateStaticParams() {
   const products = await getCatalogProducts();
@@ -26,15 +29,20 @@ export async function generateMetadata({
   const product = await getProductBySlug(slug);
 
   if (!product) {
-    return {
-      title: 'Plant not found | Verdant Atelier',
-    };
+    return buildPageMetadata({
+      title: 'Plant not found',
+      description: 'The product you are looking for is unavailable or no longer listed.',
+      pathname: `/plants/${slug}`,
+      noIndex: true,
+    });
   }
 
-  return {
-    title: `${product.name} | Verdant Atelier`,
+  return buildPageMetadata({
+    title: product.name,
     description: product.shortDescription,
-  };
+    pathname: `/plants/${product.slug}`,
+    image: product.images[0]?.src,
+  });
 }
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -50,6 +58,13 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   return (
     <section className="py-10 sm:py-14">
       <Container className="space-y-10">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(buildProductStructuredData(product)),
+          }}
+        />
+
         <div className="grid gap-8 lg:grid-cols-2 lg:gap-10">
           <ProductGallery product={product} />
 
@@ -148,13 +163,16 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         </div>
 
         {relatedProducts.length > 0 ? (
-          <section className="space-y-5">
+          <section className="space-y-5" aria-labelledby="related-plants-heading">
             <div className="flex items-end justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.16em] text-brand-sage">
                   You might also like
                 </p>
-                <h2 className="mt-2 font-serif text-3xl text-brand-moss">
+                <h2
+                  id="related-plants-heading"
+                  className="mt-2 font-serif text-3xl text-brand-moss"
+                >
                   Similar plants for your scheme
                 </h2>
               </div>
@@ -167,7 +185,21 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             </div>
             <ProductGrid products={relatedProducts} />
           </section>
-        ) : null}
+        ) : (
+          <section className="rounded-3xl border border-brand-sage/20 bg-white p-6 sm:p-8">
+            <h2 className="font-serif text-2xl text-brand-moss">Explore more premium plants</h2>
+            <p className="mt-3 max-w-3xl text-sm leading-relaxed text-brand-charcoal/75 sm:text-base">
+              We currently have no closely related matches for this product. Browse the full catalog
+              to discover alternatives curated for style, resilience, and seasonality.
+            </p>
+            <Link
+              href="/plants"
+              className="mt-5 inline-flex rounded-full bg-brand-moss px-5 py-2 text-sm font-semibold text-brand-cream"
+            >
+              Browse all plants
+            </Link>
+          </section>
+        )}
       </Container>
     </section>
   );
@@ -187,4 +219,36 @@ function getStockMessage(product: Product) {
   }
 
   return 'Currently unavailable while we prepare the next high-quality batch.';
+}
+
+function buildProductStructuredData(product: Product) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: product.name,
+    description: product.shortDescription,
+    image: product.images.map((image) => image.src),
+    sku: product.id,
+    category: product.category,
+    offers: {
+      '@type': 'Offer',
+      priceCurrency: 'USD',
+      price: product.price.toFixed(2),
+      url: toAbsoluteUrl(`/plants/${product.slug}`),
+      availability: mapAvailability(product.stockStatus),
+      itemCondition: 'https://schema.org/NewCondition',
+    },
+  };
+}
+
+function mapAvailability(stockStatus: Product['stockStatus']) {
+  if (stockStatus === 'in_stock' || stockStatus === 'low_stock') {
+    return 'https://schema.org/InStock';
+  }
+
+  if (stockStatus === 'preorder') {
+    return 'https://schema.org/PreOrder';
+  }
+
+  return 'https://schema.org/OutOfStock';
 }
