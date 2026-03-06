@@ -229,7 +229,9 @@ export function createStripeWebhookEventProcessor(
         return order;
       });
 
-      if (!existingOrder?.completedAt && order.completedAt !== null) {
+      const isNewlyCompleted = !existingOrder?.completedAt && order.completedAt !== null;
+
+      if (isNewlyCompleted) {
         try {
           await sendConfirmationEmail({
             orderReference: order.id,

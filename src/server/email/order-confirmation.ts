@@ -88,7 +88,7 @@ export async function sendOrderConfirmationEmail(payload: OrderConfirmationEmail
   await transport.sendMail({
     to: payload.customerEmail,
     from: emailFrom,
-    subject: `Order confirmation ${payload.orderReference}`,
+    subject: `Order confirmation: ${payload.orderReference}`,
     text,
   });
 }
