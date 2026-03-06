@@ -3,11 +3,11 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
 import { stripeCatalogById, type StripeCatalogItemId } from '@/features/checkout/cart';
+import type { CheckoutLineItem } from '@/features/checkout/types';
 import type {
-  CheckoutLineItem,
   CreateCheckoutSessionRequest,
   CreateCheckoutSessionResponse,
-} from '@/features/checkout/types';
+} from '@/features/checkout/stripe-types';
 import { getStripeServerClient } from '@/lib/stripe/server';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';

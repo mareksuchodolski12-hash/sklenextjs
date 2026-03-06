@@ -6,6 +6,23 @@ import type {
   CheckoutValidationErrors,
 } from './types';
 
+export const mockCheckoutItems: CheckoutLineItem[] = [
+  {
+    id: 'line-hydrangea-1',
+    name: 'Hydrangea Paniculata Limelight',
+    variant: '5L nursery pot',
+    quantity: 2,
+    unitPrice: 42,
+  },
+  {
+    id: 'line-lavender-1',
+    name: 'Lavandula Angustifolia Hidcote',
+    variant: '2L premium rootball',
+    quantity: 4,
+    unitPrice: 14,
+  },
+];
+
 export const defaultAddress: CheckoutAddress = {
   firstName: '',
   lastName: '',

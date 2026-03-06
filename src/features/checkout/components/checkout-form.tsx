@@ -2,16 +2,13 @@
 
 import { type FormEvent, useMemo, useState } from 'react';
 
-import { checkoutCartSeed } from '@/features/checkout/cart';
-import type {
-  CheckoutFormValues,
-  CheckoutValidationErrors,
-  CreateCheckoutSessionResponse,
-} from '@/features/checkout/types';
+import type { CheckoutFormValues, CheckoutValidationErrors } from '@/features/checkout/types';
+import type { CreateCheckoutSessionResponse } from '@/features/checkout/stripe-types';
 import {
   buildDraftOrderPayload,
   calculateOrderTotals,
   defaultAddress,
+  mockCheckoutItems,
   validateCheckoutForm,
 } from '@/features/checkout/validation';
 import { formatPrice } from '@/domain/catalog/utils';
@@ -39,7 +36,7 @@ export function CheckoutForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const totals = useMemo(() => calculateOrderTotals(checkoutCartSeed), []);
+  const totals = useMemo(() => calculateOrderTotals(mockCheckoutItems), []);
 
   const updateShippingField = (
     field: keyof CheckoutFormValues['shippingAddress'],
@@ -78,7 +75,7 @@ export function CheckoutForm() {
     setIsSubmitting(true);
 
     try {
-      const draftOrder = buildDraftOrderPayload(values, checkoutCartSeed);
+      const draftOrder = buildDraftOrderPayload(values, mockCheckoutItems);
       const response = await fetch('/api/checkout/session', {
         method: 'POST',
         headers: {
@@ -488,7 +485,7 @@ export function CheckoutForm() {
           <h2 className="mt-2 font-serif text-3xl text-brand-moss">Your plants</h2>
 
           <ul className="mt-5 space-y-3">
-            {checkoutCartSeed.map((item) => (
+            {mockCheckoutItems.map((item) => (
               <li
                 key={item.id}
                 className="rounded-2xl border border-brand-sage/20 bg-brand-cream/40 p-3 text-sm"
