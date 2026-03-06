@@ -9,6 +9,7 @@ Production-minded Next.js baseline for a premium e-commerce experience focused o
 - Tailwind CSS
 - Prisma ORM
 - PostgreSQL
+- Auth.js (NextAuth) with Prisma adapter
 - ESLint + Next.js rules
 - Prettier + Tailwind class sorting plugin
 
@@ -22,7 +23,7 @@ npm install
 
 ### 2) Configure environment
 
-Copy `.env.example` to `.env.local` and adjust `DATABASE_URL`:
+Copy `.env.example` to `.env.local` and configure database + auth secrets/providers:
 
 ```bash
 cp .env.example .env.local
@@ -30,6 +31,13 @@ cp .env.example .env.local
 
 ```env
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/verdant_atelier?schema=public"
+AUTH_SECRET="replace-with-strong-random-secret"
+
+# choose at least one provider strategy
+# GITHUB_ID=""
+# GITHUB_SECRET=""
+# EMAIL_SERVER="smtp://localhost:1025"
+# EMAIL_FROM="Verdant Atelier <noreply@verdant-atelier.local>"
 ```
 
 ### 3) Generate Prisma Client
@@ -55,6 +63,27 @@ npm run prisma:seed
 ```bash
 npm run dev
 ```
+
+## Authentication
+
+This storefront uses **Auth.js / NextAuth (App Router)** with a Prisma adapter.
+
+### Provider strategy
+
+- **Production-ready default**: GitHub OAuth and/or Email magic link (configure either or both via env vars).
+- **Local fallback**: if no provider env vars are set in non-production, a development-only email credential flow is enabled so local auth remains usable.
+
+### Auth routes and areas
+
+- `/auth/sign-in` — sign-in surface for configured providers.
+- `/api/auth/[...nextauth]` — Auth.js handler route.
+- `/account` — protected account shell (middleware + server guard).
+
+### Session approach
+
+- Uses **database sessions** when OAuth/email providers are configured.
+- Falls back to **JWT sessions** only for dev-credentials mode.
+- Session exposes `session.user.id` for linking favorites/discoveries.
 
 ## Production migration flow
 
