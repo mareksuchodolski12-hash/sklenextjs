@@ -1,8 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import Stripe from 'stripe';
-
 import { getStripeWebhookSecret } from '@/lib/stripe/config';
+import { getErrorMessage, isStripeError } from '@/lib/stripe/errors';
 import { getStripeServerClient } from '@/lib/stripe/server';
 
 export const runtime = 'nodejs';
@@ -41,16 +40,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    if (error instanceof Stripe.errors.StripeError) {
+    if (isStripeError(error)) {
       return NextResponse.json({ ok: false, message: error.message }, { status: 400 });
     }
 
-    if (error instanceof Error) {
-      return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
-    }
-
     return NextResponse.json(
-      { ok: false, message: 'Unable to process Stripe webhook.' },
+      { ok: false, message: getErrorMessage(error, 'Unable to process Stripe webhook.') },
       { status: 500 },
     );
   }

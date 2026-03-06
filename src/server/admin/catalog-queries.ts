@@ -1,24 +1,38 @@
 import 'server-only';
 
+import type { Prisma } from '@prisma/client';
+
 import { prisma } from '@/lib/prisma';
 
-type DbClient = {
-  product: {
-    findMany(args: unknown): Promise<unknown[]>;
-    findUnique(args: unknown): Promise<unknown | null>;
-    count(args?: unknown): Promise<number>;
+type AdminProductListRecord = Prisma.ProductGetPayload<{
+  include: {
+    category: {
+      select: {
+        name: true;
+      };
+    };
   };
-  category: {
-    findMany(args: unknown): Promise<unknown[]>;
-    count(args?: unknown): Promise<number>;
-  };
-  collection: {
-    findMany(args: unknown): Promise<unknown[]>;
-    count(args?: unknown): Promise<number>;
-  };
-};
+}>;
 
-const db = prisma as unknown as DbClient;
+type AdminProductDetailRecord = Prisma.ProductGetPayload<{
+  include: {
+    images: {
+      orderBy: {
+        position: 'asc';
+      };
+    };
+    collections: {
+      include: {
+        collection: {
+          select: {
+            id: true;
+            title: true;
+          };
+        };
+      };
+    };
+  };
+}>;
 
 type AdminProductListItem = {
   id: string;
@@ -35,7 +49,7 @@ type AdminProductListItem = {
 
 export async function getAdminProductList(): Promise<AdminProductListItem[]> {
   try {
-    const rows = await db.product.findMany({
+    const rows = await prisma.product.findMany({
       orderBy: { updatedAt: 'desc' },
       include: {
         category: {
@@ -47,41 +61,28 @@ export async function getAdminProductList(): Promise<AdminProductListItem[]> {
       take: 100,
     });
 
-    return rows.map((row) => {
-      const item = row as {
-        id: string;
-        name: string;
-        slug: string;
-        sku: string;
-        price: { toString(): string };
-        isActive: boolean;
-        stockStatus: string;
-        quantityOnHand: number;
-        updatedAt: Date;
-        category?: { name?: string | null };
-      };
-
-      return {
-        id: item.id,
-        name: item.name,
-        slug: item.slug,
-        sku: item.sku,
-        price: item.price.toString(),
-        isActive: item.isActive,
-        stockStatus: item.stockStatus,
-        quantityOnHand: item.quantityOnHand,
-        categoryName: item.category?.name ?? 'Uncategorized',
-        updatedAt: item.updatedAt,
-      };
-    });
+    return rows.map((item: AdminProductListRecord) => ({
+      id: item.id,
+      name: item.name,
+      slug: item.slug,
+      sku: item.sku,
+      price: item.price.toString(),
+      isActive: item.isActive,
+      stockStatus: item.stockStatus,
+      quantityOnHand: item.quantityOnHand,
+      categoryName: item.category?.name ?? 'Uncategorized',
+      updatedAt: item.updatedAt,
+    }));
   } catch {
     return [];
   }
 }
 
-export async function getAdminProductById(productId: string) {
+export async function getAdminProductById(
+  productId: string,
+): Promise<AdminProductDetailRecord | null> {
   try {
-    const row = await db.product.findUnique({
+    return await prisma.product.findUnique({
       where: { id: productId },
       include: {
         images: {
@@ -99,24 +100,6 @@ export async function getAdminProductById(productId: string) {
         },
       },
     });
-
-    return row as {
-      id: string;
-      name: string;
-      slug: string;
-      shortDescription: string;
-      longDescription: string;
-      sku: string;
-      price: { toString(): string };
-      compareAtPrice: { toString(): string } | null;
-      categoryId: string;
-      isActive: boolean;
-      featured: boolean;
-      quantityOnHand: number;
-      trackInventory: boolean;
-      images: Array<{ id: string; url: string; alt: string; position: number; isPrimary: boolean }>;
-      collections: Array<{ collection: { id: string; title: string } }>;
-    } | null;
   } catch {
     return null;
   }
@@ -125,7 +108,7 @@ export async function getAdminProductById(productId: string) {
 export async function getAdminTaxonomyOptions() {
   try {
     const [categories, collections] = await Promise.all([
-      db.category.findMany({
+      prisma.category.findMany({
         orderBy: { name: 'asc' },
         select: {
           id: true,
@@ -133,7 +116,7 @@ export async function getAdminTaxonomyOptions() {
           slug: true,
         },
       }),
-      db.collection.findMany({
+      prisma.collection.findMany({
         orderBy: { title: 'asc' },
         select: {
           id: true,
@@ -145,13 +128,8 @@ export async function getAdminTaxonomyOptions() {
     ]);
 
     return {
-      categories: categories as Array<{ id: string; name: string; slug: string }>,
-      collections: collections as Array<{
-        id: string;
-        title: string;
-        slug: string;
-        isFeatured: boolean;
-      }>,
+      categories,
+      collections,
     };
   } catch {
     return {
@@ -164,10 +142,10 @@ export async function getAdminTaxonomyOptions() {
 export async function getAdminDashboardSummary() {
   try {
     const [productCount, activeProductCount, categoryCount, collectionCount] = await Promise.all([
-      db.product.count(),
-      db.product.count({ where: { isActive: true } }),
-      db.category.count(),
-      db.collection.count(),
+      prisma.product.count(),
+      prisma.product.count({ where: { isActive: true } }),
+      prisma.category.count(),
+      prisma.collection.count(),
     ]);
 
     return {

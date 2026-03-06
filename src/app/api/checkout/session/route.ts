@@ -8,6 +8,7 @@ import type {
   CreateCheckoutSessionRequest,
   CreateCheckoutSessionResponse,
 } from '@/features/checkout/stripe-types';
+import { getErrorMessage, isStripeError } from '@/lib/stripe/errors';
 import { getStripeServerClient } from '@/lib/stripe/server';
 
 const SHIPPING_FEE_MINOR = 800;
@@ -220,12 +221,13 @@ export async function POST(request: NextRequest) {
       return buildError('BAD_REQUEST', 'Malformed JSON payload.', 400);
     }
 
-    if (error instanceof Stripe.errors.StripeError) {
+    if (isStripeError(error)) {
       return buildError('STRIPE_ERROR', error.message, 502);
     }
 
-    if (error instanceof Error && error.message.includes('STRIPE_SECRET_KEY')) {
-      return buildError('CONFIG_ERROR', error.message, 500);
+    const errorMessage = getErrorMessage(error, 'Unable to create checkout session.');
+    if (errorMessage.includes('STRIPE_SECRET_KEY')) {
+      return buildError('CONFIG_ERROR', errorMessage, 500);
     }
 
     return buildError('UNKNOWN_ERROR', 'Unable to create checkout session.', 500);

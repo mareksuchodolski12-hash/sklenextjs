@@ -1,5 +1,6 @@
 import 'server-only';
 
+import type { Prisma } from '@prisma/client';
 import { unstable_cache } from 'next/cache';
 
 import {
@@ -11,23 +12,6 @@ import type { Product, ProductCategory } from '@/domain/catalog/models';
 import { prisma } from '@/lib/prisma';
 
 import { mapCategoryToViewModel, mapProductToViewModel } from './mappers';
-
-type DbClient = {
-  product: {
-    findMany(args: unknown): Promise<unknown[]>;
-    findUnique(args: unknown): Promise<unknown | null>;
-  };
-  category: {
-    findMany(
-      args: unknown,
-    ): Promise<Array<{ id: string; slug: string; name: string; description: string | null }>>;
-  };
-  collection: {
-    findUnique(args: unknown): Promise<unknown | null>;
-  };
-};
-
-const db = prisma as unknown as DbClient;
 
 const productInclude = {
   category: true,
@@ -42,20 +26,28 @@ const productInclude = {
     },
   },
   attributes: true,
+} satisfies Prisma.ProductInclude;
+
+type CatalogProductRecord = Prisma.ProductGetPayload<{ include: typeof productInclude }>;
+
+type CollectionSummary = {
+  id: string;
+  slug: string;
+  title: string;
+  subtitle: string | null;
+  description: string | null;
 };
 
 async function fetchProducts(): Promise<Product[]> {
   try {
-    const products = await db.product.findMany({
+    const products = await prisma.product.findMany({
       where: {
         isActive: true,
       },
       include: productInclude,
     });
 
-    return products.map((product) =>
-      mapProductToViewModel(product as Parameters<typeof mapProductToViewModel>[0]),
-    );
+    return products.map((product) => mapProductToViewModel(product as CatalogProductRecord));
   } catch {
     return [];
   }
@@ -69,7 +61,7 @@ export const getCatalogProducts = unstable_cache(fetchProducts, ['catalog:produc
 export const getCatalogCategories = unstable_cache(
   async (): Promise<ProductCategory[]> => {
     try {
-      const categories = await db.category.findMany({
+      const categories = await prisma.category.findMany({
         orderBy: { name: 'asc' },
         select: {
           id: true,
@@ -93,21 +85,21 @@ export const getCatalogCategories = unstable_cache(
 
 export async function getFeaturedProducts(limit = 4): Promise<Product[]> {
   const products = await getCatalogProducts();
-  return products.filter((product: Product) => product.featured).slice(0, limit);
+  return products.filter((product) => product.featured).slice(0, limit);
 }
 
 export async function getProductBySlug(slug: string): Promise<Product | null> {
   try {
-    const product = await db.product.findUnique({
+    const product = await prisma.product.findUnique({
       where: { slug },
       include: productInclude,
     });
 
-    if (!product || !(product as { isActive?: boolean }).isActive) {
+    if (!product || !product.isActive) {
       return null;
     }
 
-    return mapProductToViewModel(product as Parameters<typeof mapProductToViewModel>[0]);
+    return mapProductToViewModel(product as CatalogProductRecord);
   } catch {
     return null;
   }
@@ -122,8 +114,8 @@ export async function getRelatedProducts(slug: string, limit = 3): Promise<Produ
   const products = await getCatalogProducts();
 
   return products
-    .filter((candidate: Product) => candidate.slug !== source.slug)
-    .map((candidate: Product) => {
+    .filter((candidate) => candidate.slug !== source.slug)
+    .map((candidate) => {
       let score = 0;
 
       if (candidate.category === source.category) {
@@ -140,9 +132,9 @@ export async function getRelatedProducts(slug: string, limit = 3): Promise<Produ
     .map((entry) => entry.candidate);
 }
 
-export async function getCollectionBySlug(slug: string) {
+export async function getCollectionBySlug(slug: string): Promise<CollectionSummary | null> {
   try {
-    return await db.collection.findUnique({
+    return await prisma.collection.findUnique({
       where: { slug },
       select: {
         id: true,
