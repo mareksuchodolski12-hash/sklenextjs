@@ -36,14 +36,42 @@ function createWebhookEvent(): StripeWebhookEvent {
   };
 }
 
+function createWebhookEventVariant(overrides: {
+  eventId?: string;
+  sessionId?: string;
+}): StripeWebhookEvent {
+  const event = createWebhookEvent();
+
+  if (overrides.eventId) {
+    event.id = overrides.eventId;
+  }
+
+  if (overrides.sessionId) {
+    event.data.object.id = overrides.sessionId;
+  }
+
+  return event;
+}
+
 function createHarness(options?: {
   failRetrieveAttempts?: number;
   onRetrieveLineItems?: () => Promise<void> | void;
   failEmailSend?: boolean;
+  failEmailSendAttempts?: number;
+  onSendConfirmationEmail?: () => Promise<void> | void;
 }) {
   const events = new Map<string, EventRecord>();
-  const ordersBySessionId = new Map<string, { id: string; completedAt: Date | null }>();
+  const ordersBySessionId = new Map<
+    string,
+    {
+      id: string;
+      completedAt: Date | null;
+      confirmationEmailSendingAt: Date | null;
+      confirmationEmailSentAt: Date | null;
+    }
+  >();
   let failRetrieveAttempts = options?.failRetrieveAttempts ?? 0;
+  let failEmailSendAttempts = options?.failEmailSendAttempts ?? 0;
   let orderIdSequence = 0;
 
   const counters = {
@@ -57,11 +85,6 @@ function createHarness(options?: {
 
   const txClient = {
     order: {
-      findUnique: async ({
-        where,
-      }: {
-        where: { stripeSessionId: string };
-      }) => ordersBySessionId.get(where.stripeSessionId) ?? null,
       upsert: async ({
         where,
         create,
@@ -87,9 +110,68 @@ function createHarness(options?: {
         const createdOrder = {
           id: `order_${orderIdSequence}`,
           completedAt: create.completedAt ?? null,
+          confirmationEmailSendingAt: null,
+          confirmationEmailSentAt: null,
         };
         ordersBySessionId.set(where.stripeSessionId, createdOrder);
         return createdOrder;
+      },
+      updateMany: async ({
+        where,
+        data,
+      }: {
+        where: {
+          id: string;
+          completedAt?: { not: null };
+          confirmationEmailSentAt?: null;
+          confirmationEmailSendingAt?: null | { not: null };
+        };
+        data: {
+          confirmationEmailSendingAt?: Date | null;
+          confirmationEmailSentAt?: Date | null;
+        };
+      }) => {
+        const sessionEntry = [...ordersBySessionId.entries()].find(([, order]) => order.id === where.id);
+        if (!sessionEntry) {
+          return { count: 0 };
+        }
+
+        const [sessionId, order] = sessionEntry;
+
+        if (where.completedAt && order.completedAt === null) {
+          return { count: 0 };
+        }
+
+        if (where.confirmationEmailSentAt === null && order.confirmationEmailSentAt !== null) {
+          return { count: 0 };
+        }
+
+        if (where.confirmationEmailSendingAt === null && order.confirmationEmailSendingAt !== null) {
+          return { count: 0 };
+        }
+
+        if (
+          where.confirmationEmailSendingAt &&
+          'not' in where.confirmationEmailSendingAt &&
+          where.confirmationEmailSendingAt.not === null &&
+          order.confirmationEmailSendingAt === null
+        ) {
+          return { count: 0 };
+        }
+
+        ordersBySessionId.set(sessionId, {
+          ...order,
+          confirmationEmailSendingAt:
+            data.confirmationEmailSendingAt === undefined
+              ? order.confirmationEmailSendingAt
+              : data.confirmationEmailSendingAt,
+          confirmationEmailSentAt:
+            data.confirmationEmailSentAt === undefined
+              ? order.confirmationEmailSentAt
+              : data.confirmationEmailSentAt,
+        });
+
+        return { count: 1 };
       },
     },
     orderItem: {
@@ -184,6 +266,13 @@ function createHarness(options?: {
     },
     sendConfirmationEmail: async () => {
       counters.confirmationEmailSend += 1;
+
+      await options?.onSendConfirmationEmail?.();
+
+      if (failEmailSendAttempts > 0) {
+        failEmailSendAttempts -= 1;
+        throw new Error('SMTP transport unavailable.');
+      }
 
       if (options?.failEmailSend) {
         throw new Error('SMTP transport unavailable.');
@@ -343,4 +432,75 @@ test('does not fail webhook processing when confirmation email sending fails', a
   assert.equal(harness.readEvent(event.id)?.status, 'processed');
   assert.equal(harness.counters.orderUpsert, 1);
   assert.equal(harness.counters.confirmationEmailSend, 1);
+});
+
+test('sends only one confirmation email when two completion events race for same order', async () => {
+  const emailSendControl: { release: () => void } = { release: () => undefined };
+  const emailSendGate = new Promise<void>((resolve) => {
+    emailSendControl.release = resolve;
+  });
+
+  const emailSendStartedControl: { started: () => void } = { started: () => undefined };
+  const emailSendStarted = new Promise<void>((resolve) => {
+    emailSendStartedControl.started = resolve;
+  });
+
+  const harness = createHarness({
+    onSendConfirmationEmail: async () => {
+      emailSendStartedControl.started();
+      await emailSendGate;
+    },
+  });
+
+  const firstEvent = createWebhookEventVariant({
+    eventId: 'evt_checkout_completed_1',
+    sessionId: 'cs_shared_session',
+  });
+  const secondEvent = createWebhookEventVariant({
+    eventId: 'evt_checkout_completed_2',
+    sessionId: 'cs_shared_session',
+  });
+
+  const firstProcessing = harness.processStripeWebhookEvent(firstEvent);
+  await emailSendStarted;
+  const secondResult = await harness.processStripeWebhookEvent(secondEvent);
+  emailSendControl.release();
+  const firstResult = await firstProcessing;
+
+  assert.deepEqual(firstResult, {
+    status: 'processed',
+    duplicate: false,
+  });
+  assert.deepEqual(secondResult, {
+    status: 'processed',
+    duplicate: false,
+  });
+  assert.equal(harness.counters.confirmationEmailSend, 1);
+});
+
+test('retries confirmation email on later event after prior send failure', async () => {
+  const harness = createHarness({
+    failEmailSendAttempts: 1,
+  });
+  const firstEvent = createWebhookEventVariant({
+    eventId: 'evt_checkout_completed_email_fail',
+    sessionId: 'cs_email_retry_session',
+  });
+  const retryEvent = createWebhookEventVariant({
+    eventId: 'evt_checkout_completed_email_retry',
+    sessionId: 'cs_email_retry_session',
+  });
+
+  const firstResult = await harness.processStripeWebhookEvent(firstEvent);
+  const retryResult = await harness.processStripeWebhookEvent(retryEvent);
+
+  assert.deepEqual(firstResult, {
+    status: 'processed',
+    duplicate: false,
+  });
+  assert.deepEqual(retryResult, {
+    status: 'processed',
+    duplicate: false,
+  });
+  assert.equal(harness.counters.confirmationEmailSend, 2);
 });

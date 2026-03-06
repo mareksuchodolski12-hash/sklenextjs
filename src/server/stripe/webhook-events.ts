@@ -42,8 +42,13 @@ type StripeWebhookEventStore = {
 };
 
 type StripeWebhookOrderStore = {
-  findUnique(args: Record<string, unknown>): Promise<{ id: string; completedAt: Date | null } | null>;
-  upsert(args: Record<string, unknown>): Promise<{ id: string; completedAt: Date | null }>;
+  upsert(args: Record<string, unknown>): Promise<{
+    id: string;
+    completedAt: Date | null;
+    confirmationEmailSendingAt?: Date | null;
+    confirmationEmailSentAt?: Date | null;
+  }>;
+  updateMany(args: Record<string, unknown>): Promise<{ count: number }>;
 };
 
 type StripeWebhookOrderItemStore = {
@@ -140,11 +145,6 @@ export function createStripeWebhookEventProcessor(
           : null);
 
       const lineItems = await retrieveLineItems(sessionId);
-      const existingOrder = await prismaClient.order.findUnique({
-        where: { stripeSessionId: sessionId },
-        select: { id: true, completedAt: true },
-      });
-
       const orderMetadata = asJsonObject(event.data.object.metadata);
       const currency = asString(event.data.object.currency);
       const amountSubtotalMinor = asNumber(event.data.object.amount_subtotal);
@@ -229,9 +229,21 @@ export function createStripeWebhookEventProcessor(
         return order;
       });
 
-      const isNewlyCompleted = !existingOrder?.completedAt && order.completedAt !== null;
+      const emailSendClaim = await prismaClient.order.updateMany({
+        where: {
+          id: order.id,
+          completedAt: {
+            not: null,
+          },
+          confirmationEmailSentAt: null,
+          confirmationEmailSendingAt: null,
+        },
+        data: {
+          confirmationEmailSendingAt: now(),
+        },
+      });
 
-      if (isNewlyCompleted) {
+      if (emailSendClaim.count > 0) {
         try {
           await sendConfirmationEmail({
             orderReference: order.id,
@@ -246,6 +258,20 @@ export function createStripeWebhookEventProcessor(
             })),
           });
 
+          await prismaClient.order.updateMany({
+            where: {
+              id: order.id,
+              confirmationEmailSentAt: null,
+              confirmationEmailSendingAt: {
+                not: null,
+              },
+            },
+            data: {
+              confirmationEmailSentAt: now(),
+              confirmationEmailSendingAt: null,
+            },
+          });
+
           console.info('[stripe-webhook] order confirmation email sent', {
             eventId: event.id,
             sessionId,
@@ -255,6 +281,20 @@ export function createStripeWebhookEventProcessor(
         } catch (error) {
           const message =
             error instanceof Error ? error.message : 'Unknown order confirmation email failure.';
+
+          await prismaClient.order.updateMany({
+            where: {
+              id: order.id,
+              confirmationEmailSentAt: null,
+              confirmationEmailSendingAt: {
+                not: null,
+              },
+            },
+            data: {
+              confirmationEmailSendingAt: null,
+            },
+          });
+
           console.error('[stripe-webhook] order confirmation email failed', {
             eventId: event.id,
             sessionId,
