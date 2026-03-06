@@ -179,6 +179,7 @@ function parseStripeSignature(signatureHeader: string) {
 
 export function constructStripeEvent(payload: string, signatureHeader: string): StripeEvent {
   const { timestamp, signature } = parseStripeSignature(signatureHeader);
+
   if (!timestamp || !signature) {
     throw new Error('Malformed stripe-signature header.');
   }

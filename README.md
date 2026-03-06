@@ -238,7 +238,7 @@ This project includes a production-minded Stripe checkout foundation:
 - `SITE_URL` (or fallback `NEXT_PUBLIC_SITE_URL`) is used server-side for Stripe return URLs.
 - Client never receives secret keys or computes authoritative payment amounts.
 - Checkout session line items are mapped from a server-maintained catalog and sanitized quantities.
-- Webhook route validates `stripe-signature` using Stripe SDK before processing events.
+- Webhook route validates `stripe-signature` using HMAC SHA-256 with timestamp tolerance checks and processes events through an idempotent dispatcher.
 
 ### Local webhook testing
 
@@ -251,7 +251,7 @@ stripe listen --forward-to localhost:3000/api/stripe/webhook
 
 3. Copy the printed webhook signing secret into `STRIPE_WEBHOOK_SECRET`.
 
-> Note: webhook currently logs validated events and is intentionally a skeleton until order persistence is implemented.
+> Note: webhook now writes `event.id` receipts to `StripeWebhookEvent` for replay protection; you still need domain order persistence logic for completed checkout sessions.
 
 ### Manual Stripe setup checklist
 

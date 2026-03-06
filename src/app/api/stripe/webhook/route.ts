@@ -1,6 +1,11 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { constructStripeEvent } from '@/lib/stripe/http';
+
+import {
+  StripeWebhookVerificationError,
+  verifyAndParseStripeWebhookEvent,
+} from '@/lib/stripe/webhook';
+import { processStripeWebhookEvent } from '@/server/stripe/webhook-events';
 
 export const runtime = 'nodejs';
 
@@ -8,6 +13,7 @@ export async function POST(request: NextRequest) {
   const signature = request.headers.get('stripe-signature');
 
   if (!signature) {
+    console.warn('[stripe-webhook] rejected: missing signature header');
     return NextResponse.json(
       { ok: false, message: 'Missing stripe-signature header.' },
       { status: 400 },
@@ -17,28 +23,41 @@ export async function POST(request: NextRequest) {
   const rawPayload = await request.text();
 
   try {
-    const event = constructStripeEvent(rawPayload, signature);
+    const event = verifyAndParseStripeWebhookEvent(rawPayload, signature);
 
-    switch (event.type) {
-      case 'checkout.session.completed': {
-        const session = event.data.object;
-        // TODO: Persist order/payment state with idempotency protection keyed by event.id.
-        console.info('[stripe-webhook] checkout completed', {
-          eventId: event.id,
-          sessionId: session.id,
-          customerEmail: session.customer_details?.email,
-          paymentStatus: session.payment_status,
-        });
-        break;
-      }
-      default:
-        console.info('[stripe-webhook] received', { eventId: event.id, type: event.type });
+    console.info('[stripe-webhook] received', {
+      eventId: event.id,
+      eventType: event.type,
+    });
+
+    const result = await processStripeWebhookEvent(event);
+
+    return NextResponse.json({
+      ok: true,
+      duplicate: result.duplicate,
+      status: result.status,
+    });
+  } catch (error) {
+    if (error instanceof StripeWebhookVerificationError) {
+      console.warn('[stripe-webhook] rejected: verification failed', {
+        message: error.message,
+      });
+
+      return NextResponse.json(
+        { ok: false, message: error.message },
+        { status: error.statusCode },
+      );
     }
 
-    return NextResponse.json({ ok: true });
-  } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to process Stripe webhook.';
-    const status = message.includes('signature') ? 400 : 500;
-    return NextResponse.json({ ok: false, message }, { status });
+
+    console.error('[stripe-webhook] failed', {
+      message,
+    });
+
+    return NextResponse.json(
+      { ok: false, message: 'Unable to process Stripe webhook.' },
+      { status: 500 },
+    );
   }
 }

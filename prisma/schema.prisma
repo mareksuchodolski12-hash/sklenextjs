@@ -259,3 +259,18 @@ model FavoriteProduct {
   @@id([userId, productId])
   @@index([productId])
 }
+
+
+model StripeWebhookEvent {
+  id          String   @id @default(cuid())
+  eventId     String   @unique
+  eventType   String
+  status      String
+  processedAt DateTime?
+  error       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([createdAt])
+  @@index([status])
+}
