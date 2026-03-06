@@ -6,7 +6,7 @@ import { CheckoutForm } from '@/features/checkout/components/checkout-form';
 
 export const metadata: Metadata = {
   title: 'Checkout | Verdant Atelier',
-  description: 'Complete your premium garden flower order details before payment setup.',
+  description: 'Complete your premium garden flower order details and continue to secure Stripe checkout.',
 };
 
 export default function CheckoutPage() {
@@ -15,12 +15,12 @@ export default function CheckoutPage() {
       <Container className="space-y-6">
         <div className="space-y-3">
           <p className="text-xs uppercase tracking-[0.2em] text-brand-sage">
-            Secure checkout foundation
+            Secure Stripe checkout
           </p>
           <h1 className="font-serif text-4xl text-brand-moss sm:text-5xl">Checkout</h1>
           <p className="max-w-3xl text-sm leading-relaxed text-brand-charcoal/75 sm:text-base">
             Confirm your contact and delivery details for a smooth, low-friction ordering flow.
-            Payment and live order submission will be connected in the next integration phase.
+            You will review your details here, then continue to Stripe for secure card payment.
           </p>
           <Link
             href="/plants"

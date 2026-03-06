@@ -45,6 +45,7 @@ STRIPE_SECRET_KEY="sk_test_replace_me"
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="pk_test_replace_me"
 STRIPE_WEBHOOK_SECRET="whsec_replace_me"
 NEXT_PUBLIC_SITE_URL="http://localhost:3000"
+SITE_URL="http://localhost:3000"
 ```
 
 ### 3) Generate Prisma Client
@@ -170,6 +171,7 @@ This project includes a production-minded Stripe checkout foundation:
 ### Security and architecture notes
 
 - Stripe secret usage is server-only (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`).
+- `SITE_URL` (or fallback `NEXT_PUBLIC_SITE_URL`) is used server-side for Stripe return URLs.
 - Client never receives secret keys or computes authoritative payment amounts.
 - Checkout session line items are mapped from a server-maintained catalog and sanitized quantities.
 - Webhook route validates `stripe-signature` using Stripe SDK before processing events.
@@ -186,3 +188,19 @@ stripe listen --forward-to localhost:3000/api/stripe/webhook
 3. Copy the printed webhook signing secret into `STRIPE_WEBHOOK_SECRET`.
 
 > Note: webhook currently logs validated events and is intentionally a skeleton until order persistence is implemented.
+
+### Manual Stripe setup checklist
+
+1. Create/collect Stripe API keys in dashboard (test mode first).
+2. Set `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, and `SITE_URL` in environment.
+3. Start webhook forwarding and set `STRIPE_WEBHOOK_SECRET`:
+
+```bash
+stripe listen --forward-to localhost:3000/api/stripe/webhook
+```
+
+4. Run checkout from `/checkout` and complete payment with a Stripe test card (e.g. `4242 4242 4242 4242`).
+5. Confirm redirect behavior:
+   - success -> `/checkout/success?session_id=...`
+   - cancel -> `/checkout/cancel`
+
